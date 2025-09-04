@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>24/7 HTML Streamer</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .running { background-color: #d4edda; color: #155724; }
+        .stopped { background-color: #f8d7da; color: #721c24; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .start-btn { background-color: #28a745; color: white; }
+        .stop-btn { background-color: #dc3545; color: white; }
+        .form-group { margin: 15px 0; }
+        input[type="text"] { width: 100%; padding: 8px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>24/7 HTML Streamer for YouTube</h1>
+    
+    <div class="status {index.html{ 'running' if status.status == 'running' else 'stopped' }}">
+        Status: <strong>{{ status.status }}</strong>
+    </div>
+    
+    <div>
+        <p>Stream key configured: {{ status.stream_key_set }}</p>
+        <p>Current content: {{ status.content_path }}</p>
+    </div>
+    
+    <div class="form-group">
+        <label for="contentPath">Content URL or File Path:</label>
+        <input type="text" id="contentPath" value="{{ status.content_path }}" placeholder="https://example.com or file:///path/to/file.html">
+        <button onclick="updateContent()">Update Content</button>
+    </div>index.html
+    
+    <div>
+        {% if status.status == 'stopped' %}
+        <button class="start-btn" onclick="startStream()">Start Streaming</button>
+        {% else %}
+        <button class="stop-btn" onclick="stopStream()">Stop Streaming</button>
+        {% endif %}
+    </div>
+    
+    <div style="margin-top: 30px;">
+        <h3>Quick Content Ideas:</h3>
+        <button onclick="setContent('https://example.com')">Example Website</button>
+        <button onclick="setContent('https://clock.zone')">Live Clock</button>
+        <button onclick="setContent('https://www.youtube.com/embed/your-video-id?autoplay=1&loop=1')">YouTube Video (Loop)</button>
+    </div>
+    
+    <script>
+        function startStream() {
+            fetch('/api/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) location.reload();
+                });
+        }
+        
+        function stopStream() {
+            fetch('/api/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) location.reload();
+                });
+        }
+        
+        function updateContent() {
+            const contentPath = document.getElementById('contentPath').value;
+            fetch('/api/update_content', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content_path: contentPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.success) location.reload();
+            });
+        }
+        
+        function setContent(url) {
+            document.getElementById('contentPath').value = url;
+        }
+    </script>
+</body>
+</html>
