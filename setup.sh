@@ -1,69 +1,187 @@
 #!/bin/bash
-# Interactive setup script for RTMP-BASE - 24/7 HTML Streaming Server
+# One-click deployment script for RTMP-BASE - 24/7 HTML Streaming Server
+# Designed for fresh Ubuntu droplets/servers
+#
+# 🚀 QUICK START - Fresh Ubuntu Server:
+#   1. git clone <your-repo-url>
+#   2. cd RTMP-BASE
+#   3. chmod +x setup.sh && ./setup.sh
+#
+# 🤖 FULLY AUTOMATED DEPLOYMENT:
+#   YOUTUBE_STREAM_KEY="your_key" DEFAULT_CONTENT_PATH="https://your-site.com" ./setup.sh
+#
+# This script installs everything needed from scratch:
+# - Git, Python, Chromium, FFmpeg, and all dependencies
+# - Creates isolated Python virtual environment
+# - Configures firewall and systemd service
+# - Sets up auto-start on boot
 
 set -e  # Exit on any error
 
-echo "🚀 Setting up RTMP-BASE - 24/7 HTML Streaming Server..."
-echo "================================================"
+echo "🚀 One-Click Deploy: RTMP-BASE - 24/7 HTML Streaming Server"
+echo "=============================================================="
+echo "Setting up everything needed for a fresh Ubuntu system..."
+echo ""
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
+
+# Function to check if running as root
+check_not_root() {
+    if [[ $EUID -eq 0 ]]; then
+        echo -e "${RED}❌ This script should not be run as root!${NC}"
+        echo -e "${YELLOW}💡 Run as a regular user with sudo privileges instead${NC}"
+        exit 1
+    fi
+}
+
+# Function to check Ubuntu version
+check_ubuntu() {
+    if ! grep -q "Ubuntu" /etc/os-release; then
+        echo -e "${YELLOW}⚠️  Warning: This script is designed for Ubuntu. Proceeding anyway...${NC}"
+    fi
+}
+
+# Function to check internet connectivity
+check_internet() {
+    echo -e "${BLUE}🌐 Checking internet connectivity...${NC}"
+    if ! curl -s --connect-timeout 5 google.com > /dev/null; then
+        echo -e "${RED}❌ No internet connection detected!${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ Internet connection confirmed${NC}"
+}
+
+# Run initial checks
+check_not_root
+check_ubuntu
+check_internet
 
 # Update package lists
 echo -e "${BLUE}📦 Updating package lists...${NC}"
-sudo apt update
+sudo apt update -y
 
-# Install system dependencies
-echo -e "${BLUE}🔧 Installing system dependencies...${NC}"
-sudo apt install -y xvfb ffmpeg python3-pip curl
+# Install essential system dependencies
+echo -e "${BLUE}🔧 Installing essential system dependencies...${NC}"
+sudo apt install -y \
+    git \
+    curl \
+    wget \
+    unzip \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release
 
-# Install Google Chrome
-echo -e "${BLUE}🌐 Installing Google Chrome...${NC}"
-if ! command -v google-chrome &> /dev/null; then
-    curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/googlechrom-keyring.gpg
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrom-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-    sudo apt update
-    sudo apt install -y google-chrome-stable
+# Install Python and development tools
+echo -e "${BLUE}🐍 Installing Python and development tools...${NC}"
+sudo apt install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    build-essential \
+    pkg-config
+
+# Install multimedia and browser dependencies
+echo -e "${BLUE}🎬 Installing multimedia and browser dependencies...${NC}"
+sudo apt install -y \
+    xvfb \
+    ffmpeg \
+    libnss3-dev \
+    libatk-bridge2.0-dev \
+    libdrm-dev \
+    libxcomposite-dev \
+    libxdamage-dev \
+    libxrandr-dev \
+    libgbm-dev \
+    libxss-dev \
+    libasound2-dev
+
+# Install Chromium (open-source, server-friendly)
+echo -e "${BLUE}🌐 Installing Chromium browser...${NC}"
+if ! command -v chromium-browser &> /dev/null; then
+    sudo apt install -y \
+        chromium-browser \
+        chromium-browser-l10n \
+        chromium-codecs-ffmpeg
 else
-    echo -e "${GREEN}✅ Google Chrome already installed${NC}"
+    echo -e "${GREEN}✅ Chromium already installed${NC}"
 fi
 
-# Install Python dependencies
-echo -e "${BLUE}🐍 Installing Python dependencies...${NC}"
-pip3 install -r requirements.txt
+# Create virtual environment
+echo -e "${BLUE}🐍 Creating Python virtual environment...${NC}"
+python3 -m venv venv
 
-# Interactive configuration
+# Activate virtual environment
+echo -e "${BLUE}🔧 Activating virtual environment...${NC}"
+source venv/bin/activate
+
+# Upgrade pip in virtual environment
+echo -e "${BLUE}⬆️ Upgrading pip...${NC}"
+pip install --upgrade pip
+
+# Install Python dependencies in virtual environment
+echo -e "${BLUE}📦 Installing Python dependencies in virtual environment...${NC}"
+pip install -r requirements.txt
+
+# Configure firewall for web interface
+echo -e "${BLUE}🔥 Configuring firewall...${NC}"
+if command -v ufw &> /dev/null; then
+    sudo ufw --force enable
+    sudo ufw allow 5000/tcp comment "RTMP Streamer Web Interface"
+    echo -e "${GREEN}✅ Firewall configured - Port 5000 opened${NC}"
+else
+    echo -e "${YELLOW}⚠️  UFW not available, skipping firewall configuration${NC}"
+fi
+
+# Interactive or environment-based configuration
 echo ""
 echo -e "${YELLOW}⚙️  Configuration Setup${NC}"
 echo "=========================================="
-echo "Now let's configure your streaming settings..."
-echo ""
 
-# Get YouTube Stream Key
-while true; do
-    echo -e "${BLUE}Enter your YouTube Stream Key:${NC}"
-    echo "(You can find this in YouTube Studio > Go Live > Stream Key)"
-    read -r STREAM_KEY
+# Check for environment variables first (for automation)
+if [[ -n "$YOUTUBE_STREAM_KEY" ]]; then
+    STREAM_KEY="$YOUTUBE_STREAM_KEY"
+    echo -e "${GREEN}✅ Using YouTube Stream Key from environment variable${NC}"
+else
+    echo "Now let's configure your streaming settings..."
+    echo ""
     
-    if [[ -z "$STREAM_KEY" ]]; then
-        echo -e "${RED}❌ Stream key cannot be empty. Please try again.${NC}"
-    else
-        break
+    # Get YouTube Stream Key interactively
+    while true; do
+        echo -e "${BLUE}Enter your YouTube Stream Key:${NC}"
+        echo "(You can find this in YouTube Studio > Go Live > Stream Key)"
+        echo -e "${YELLOW}💡 Tip: You can also set YOUTUBE_STREAM_KEY environment variable to skip this${NC}"
+        read -r STREAM_KEY
+        
+        if [[ -z "$STREAM_KEY" ]]; then
+            echo -e "${RED}❌ Stream key cannot be empty. Please try again.${NC}"
+        else
+            break
+        fi
+    done
+fi
+
+# Get default content path
+if [[ -n "$DEFAULT_CONTENT_PATH" ]]; then
+    CONTENT_PATH="$DEFAULT_CONTENT_PATH"
+    echo -e "${GREEN}✅ Using content path from environment variable: $CONTENT_PATH${NC}"
+else
+    echo ""
+    echo -e "${BLUE}Enter default content URL/path (optional, press Enter for default):${NC}"
+    echo "Examples: https://example.com, https://clock.zone, file:///path/to/file.html"
+    read -r CONTENT_PATH
+    
+    if [[ -z "$CONTENT_PATH" ]]; then
+        CONTENT_PATH="https://example.com"
     fi
-done
-
-# Get default content path (optional)
-echo ""
-echo -e "${BLUE}Enter default content URL/path (optional, press Enter for default):${NC}"
-echo "Examples: https://example.com, https://clock.zone, file:///path/to/file.html"
-read -r CONTENT_PATH
-
-if [[ -z "$CONTENT_PATH" ]]; then
-    CONTENT_PATH="https://example.com"
 fi
 
 # Create .env file
@@ -94,7 +212,7 @@ Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$CURRENT_DIR
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=/usr/bin/python3 $CURRENT_DIR/main.py
+ExecStart=$CURRENT_DIR/venv/bin/python $CURRENT_DIR/main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -108,27 +226,54 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable rtmp-streamer.service
 
+# Display server information
+get_server_ip() {
+    # Try to get public IP
+    PUBLIC_IP=$(curl -s --connect-timeout 5 ipv4.icanhazip.com 2>/dev/null || curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || echo "Unable to determine")
+    LOCAL_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "Unable to determine")
+    echo -e "${PURPLE}🌐 Server Information:${NC}"
+    echo "• Public IP: $PUBLIC_IP"
+    echo "• Local IP: $LOCAL_IP"
+    echo "• Port: 5000"
+}
+
 echo ""
-echo -e "${GREEN}✅ Setup complete!${NC}"
-echo "=========================================="
+echo -e "${GREEN}🎉 ONE-CLICK DEPLOYMENT COMPLETE! 🎉${NC}"
+echo "=============================================================="
 echo ""
-echo -e "${BLUE}📋 What's been configured:${NC}"
-echo "• System dependencies installed"
-echo "• Python packages installed"
-echo "• Configuration saved to .env file"
-echo "• Auto-startup service created and enabled"
+
+get_server_ip
+
 echo ""
-echo -e "${BLUE}🚀 Next steps:${NC}"
-echo "1. Start the service now: sudo systemctl start rtmp-streamer"
-echo "2. Check service status: sudo systemctl status rtmp-streamer"
-echo "3. View logs: sudo journalctl -u rtmp-streamer -f"
-echo "4. Or run manually: python3 main.py"
-echo "5. Open web interface: http://localhost:5000"
+echo -e "${BLUE}📋 What's been installed & configured:${NC}"
+echo "• ✅ All system dependencies (Git, Python, Chromium, FFmpeg, etc.)"
+echo "• ✅ Python virtual environment created (venv/)"
+echo "• ✅ Python packages installed in isolated environment"
+echo "• ✅ Firewall configured (port 5000 opened)"
+echo "• ✅ Configuration saved to .env file"
+echo "• ✅ Auto-startup systemd service created and enabled"
 echo ""
-echo -e "${YELLOW}🔧 Service management commands:${NC}"
+echo -e "${BLUE}🚀 How to start streaming:${NC}"
+echo "1. 🟢 Start now: sudo systemctl start rtmp-streamer"
+echo "2. 📊 Check status: sudo systemctl status rtmp-streamer"
+echo "3. 📝 View logs: sudo journalctl -u rtmp-streamer -f"
+echo "4. 🌐 Web interface: http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
+echo ""
+echo -e "${YELLOW}🔧 Service management:${NC}"
 echo "• Start:   sudo systemctl start rtmp-streamer"
 echo "• Stop:    sudo systemctl stop rtmp-streamer"
 echo "• Restart: sudo systemctl restart rtmp-streamer"
+echo "• Status:  sudo systemctl status rtmp-streamer"
+echo "• Logs:    sudo journalctl -u rtmp-streamer -f"
 echo "• Disable auto-start: sudo systemctl disable rtmp-streamer"
 echo ""
-echo -e "${GREEN}🎉 Your streamer will now auto-start on boot!${NC}"
+echo -e "${YELLOW}💡 For manual testing:${NC}"
+echo "• Activate venv: source venv/bin/activate"
+echo "• Run manually: ./venv/bin/python main.py"
+echo ""
+echo -e "${PURPLE}🔒 Environment variables for automation:${NC}"
+echo "• YOUTUBE_STREAM_KEY=your_key ./setup.sh"
+echo "• DEFAULT_CONTENT_PATH=https://your-site.com ./setup.sh"
+echo ""
+echo -e "${GREEN}🎊 Your 24/7 streaming server is ready to go!${NC}"
+echo -e "${GREEN}   The service will automatically start on boot.${NC}"
