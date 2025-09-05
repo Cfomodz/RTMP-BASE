@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pygame Streamer</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .running { background-color: #d4edda; color: #155724; }
+        .stopped { background-color: #f8d7da; color: #721c24; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .start-btn { background-color: #28a745; color: white; }
+        .stop-btn { background-color: #dc3545; color: white; }
+        .form-group { margin: 15px 0; }
+        input[type="text"] { width: 100%; padding: 8px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>🎮 Pygame Streamer for YouTube</h1>
+    
+    <div class="status {{ 'running' if status.status == 'running' else 'stopped' }}">
+        Status: <strong>{{ status.status }}</strong>
+    </div>
+    
+    <div>
+        <p>Stream key configured: {{ status.stream_key_set }}</p>
+        <p>Current pygame script: {{ status.pygame_script }}</p>
+    </div>
+    
+    <div class="form-group">
+        <label for="scriptPath">Pygame Script Path:</label>
+        <input type="text" id="scriptPath" value="{{ status.pygame_script }}" placeholder="game.py or /path/to/your/game.py">
+        <button onclick="updateScript()">Update Script</button>
+    </div>
+    
+    <div>
+        {% if status.status == 'stopped' %}
+        <button class="start-btn" onclick="startStream()">Start Streaming</button>
+        {% else %}
+        <button class="stop-btn" onclick="stopStream()">Stop Streaming</button>
+        {% endif %}
+    </div>
+    
+    <div style="margin-top: 30px;">
+        <h3>🎮 Tips for Pygame Streaming:</h3>
+        <ul>
+            <li>Make sure your pygame script runs in fullscreen or fixed window size (1280x720)</li>
+            <li>Use <code>os.environ.get('DISPLAY')</code> to check if running on virtual display</li>
+            <li>Add proper game loop timing with <code>clock.tick(60)</code></li>
+            <li>Handle pygame.QUIT events gracefully</li>
+        </ul>
+    </div>
+    
+    <script>
+        function startStream() {
+            fetch('/api/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) location.reload();
+                });
+        }
+        
+        function stopStream() {
+            fetch('/api/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) location.reload();
+                });
+        }
+        
+        function updateScript() {
+            const scriptPath = document.getElementById('scriptPath').value;
+            fetch('/api/update_script', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ script_path: scriptPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.success) location.reload();
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-24/7 HTML/Window Streaming Server for YouTube
-Streams a browser window or HTML file continuously
+Pygame Streamer - Modified RTMP-BASE for pygame content
 """
 
 import os
@@ -20,20 +19,21 @@ load_dotenv()
 # Setup logging
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('html-streamer')
+logger = logging.getLogger('pygame-streamer')
 
 app = Flask(__name__)
 
-class HTMLStreamer:
+class PygameStreamer:
     def __init__(self):
-        self.process = None
+        self.pygame_process = None
         self.display_process = None
+        self.ffmpeg_process = None
         self.status = "stopped"
         self.stream_key = os.environ.get('YOUTUBE_STREAM_KEY', '')
-        self.content_path = os.environ.get('CONTENT_PATH', 'https://example.com')
+        self.pygame_script = os.environ.get('PYGAME_SCRIPT', 'game.py')
         
     def start_streaming(self):
-        """Start streaming HTML content"""
+        """Start streaming pygame content"""
         if not self.stream_key:
             return False, "YouTube stream key not configured"
             
@@ -53,27 +53,16 @@ class HTMLStreamer:
             env = os.environ.copy()
             env['DISPLAY'] = ':99'
             
-            # Launch Chrome in headless mode
-            chrome_cmd = [
-                'google-chrome', 
-                '--headless', 
-                '--disable-gpu',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--remote-debugging-port=9222',
-                '--remote-debugging-address=0.0.0.0',
-                self.content_path
-            ]
-            
-            self.process = subprocess.Popen(
-                chrome_cmd, 
-                env=env,
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE
-            )
-            
-            # Allow Chrome to start
-            time.sleep(5)
+            # Launch your pygame script on the virtual display
+            if os.path.exists(self.pygame_script):
+                self.pygame_process = subprocess.Popen([
+                    'python3', self.pygame_script
+                ], env=env)
+                
+                # Allow pygame to start
+                time.sleep(3)
+            else:
+                logger.warning(f"Pygame script {self.pygame_script} not found, streaming display only")
             
             # Start FFmpeg to capture and stream
             ffmpeg_cmd = [
@@ -102,8 +91,8 @@ class HTMLStreamer:
             )
             
             self.status = "running"
-            logger.info("HTML streaming started")
-            return True, "HTML streaming started successfully"
+            logger.info("Pygame streaming started")
+            return True, "Pygame streaming started successfully"
             
         except Exception as e:
             logger.error(f"Error starting stream: {e}")
@@ -119,7 +108,7 @@ class HTMLStreamer:
     
     def cleanup(self):
         """Clean up all processes"""
-        for proc in [self.process, self.ffmpeg_process, self.display_process]:
+        for proc in [self.pygame_process, self.ffmpeg_process, self.display_process]:
             if proc:
                 try:
                     proc.terminate()
@@ -137,17 +126,17 @@ class HTMLStreamer:
         return {
             "status": self.status,
             "stream_key_set": bool(self.stream_key),
-            "content_path": self.content_path
+            "pygame_script": self.pygame_script
         }
 
 # Create global streamer instance
-streamer = HTMLStreamer()
+streamer = PygameStreamer()
 
 @app.route('/')
 def index():
     """Main dashboard"""
     status = streamer.get_status()
-    return render_template('index.html', status=status)
+    return render_template('pygame_index.html', status=status)
 
 @app.route('/api/start', methods=['POST'])
 def api_start():
@@ -166,53 +155,19 @@ def api_status():
     """API endpoint to get status"""
     return jsonify(streamer.get_status())
 
-@app.route('/api/update_content', methods=['POST'])
-def api_update_content():
-    """API endpoint to update content path"""
-    content_path = request.json.get('content_path')
-    if content_path:
-        streamer.content_path = content_path
+@app.route('/api/update_script', methods=['POST'])
+def api_update_script():
+    """API endpoint to update pygame script path"""
+    script_path = request.json.get('script_path')
+    if script_path:
+        streamer.pygame_script = script_path
         # Restart stream if running to apply changes
         if streamer.status == "running":
             streamer.stop_streaming()
             time.sleep(2)
             streamer.start_streaming()
-        return jsonify({"success": True, "message": "Content path updated"})
-    return jsonify({"success": False, "message": "No content path provided"})
-
-def setup_environment():
-    """Check and setup required environment"""
-    # Check if required packages are available
-    try:
-        subprocess.run(['ffmpeg', '-version'], 
-                      capture_output=True, check=True)
-        logger.info("FFmpeg is available")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        logger.error("FFmpeg is not installed. Please install it with: sudo apt install ffmpeg")
-        return False
-        
-    try:
-        subprocess.run(['Xvfb', '-help'], 
-                      capture_output=True, check=True)
-        logger.info("Xvfb is available")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        logger.error("Xvfb is not installed. Please install it with: sudo apt install xvfb")
-        return False
-        
-    try:
-        subprocess.run(['google-chrome', '--version'], 
-                      capture_output=True, check=True)
-        logger.info("Google Chrome is available")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        logger.error("Google Chrome is not installed. Please install it")
-        return False
-        
-    # Check if stream key is set
-    if not os.environ.get('YOUTUBE_STREAM_KEY'):
-        logger.warning("YOUTUBE_STREAM_KEY environment variable is not set")
-        logger.info("You can set it with: export YOUTUBE_STREAM_KEY=your_key_here")
-        
-    return True
+        return jsonify({"success": True, "message": "Pygame script updated"})
+    return jsonify({"success": False, "message": "No script path provided"})
 
 # Handle graceful shutdown
 def signal_handler(sig, frame):
@@ -224,9 +179,5 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == '__main__':
-    # Check environment first
-    if not setup_environment():
-        sys.exit(1)
-        
     # Run the web server
     app.run(host='0.0.0.0', port=5000, debug=True)
