@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pygame Streamer - Modified RTMP-BASE for pygame content
+Pygame Streamer - Modified StreamDrop for pygame content
 """
 
 import os

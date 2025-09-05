@@ -7,8 +7,8 @@
 
 **1. Quick Start:**
 ```bash
-git clone https://github.com/Cfomodz/RTMP-BASE.git
-cd RTMP-BASE
+git clone https://github.com/Cfomodz/StreamDrop.git
+cd StreamDrop
 chmod +x setup.sh && ./setup.sh
 ```
 
@@ -19,7 +19,7 @@ chmod +x setup.sh && ./setup.sh
 YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="https://yoursite.com" python3 smart_streamer.py
 ```
 <div align="center">
-  <h1>That's it. You're live!</h1>
+  <h2>That's it. You're live!</h2>
 </div>
 
 ### Web Interface
@@ -29,8 +29,8 @@ Open `http://your-server-ip:5000` to control streams.
 ### Auto-Start Service
 
 ```bash
-sudo systemctl enable rtmp-streamer
-sudo systemctl start rtmp-streamer
+sudo systemctl enable streamdrop
+sudo systemctl start streamdrop
 ```
 
 

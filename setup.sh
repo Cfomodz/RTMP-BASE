@@ -1,10 +1,10 @@
 #!/bin/bash
-# One-click deployment script for RTMP-BASE - 24/7 HTML Streaming Server
+# One-click deployment script for StreamDrop - 24/7 HTML Streaming Server
 # Designed for fresh Ubuntu droplets/servers
 #
 # 🚀 QUICK START - Fresh Ubuntu Server:
 #   1. git clone <your-repo-url>
-#   2. cd RTMP-BASE
+#   2. cd StreamDrop
 #   3. chmod +x setup.sh && ./setup.sh
 #
 # 🤖 FULLY AUTOMATED DEPLOYMENT:
@@ -18,7 +18,7 @@
 
 set -e  # Exit on any error
 
-echo "🚀 One-Click Deploy: RTMP-BASE - 24/7 HTML Streaming Server"
+echo "🚀 One-Click Deploy: StreamDrop - 24/7 HTML Streaming Server"
 echo "=============================================================="
 echo "Setting up everything needed for a fresh Ubuntu system..."
 echo ""
@@ -178,7 +178,7 @@ pip install -r requirements.txt
 echo -e "${BLUE}🔥 Configuring firewall...${NC}"
 if command -v ufw &> /dev/null; then
     sudo ufw --force enable
-    sudo ufw allow 5000/tcp comment "RTMP Streamer Web Interface"
+    sudo ufw allow 5000/tcp comment "StreamDrop Web Interface"
     echo -e "${GREEN}✅ Firewall configured - Port 5000 opened${NC}"
 else
     echo -e "${YELLOW}⚠️  UFW not available, skipping firewall configuration${NC}"
@@ -244,9 +244,9 @@ CURRENT_USER=$(whoami)
 CURRENT_DIR=$(pwd)
 
 # Create systemd service file
-sudo tee /etc/systemd/system/rtmp-streamer.service > /dev/null << EOF
+sudo tee /etc/systemd/system/streamdrop.service > /dev/null << EOF
 [Unit]
-Description=RTMP 24/7 HTML Streamer
+Description=StreamDrop 24/7 HTML Streamer
 After=network.target
 Wants=network.target
 
@@ -267,7 +267,7 @@ EOF
 
 # Enable and start the service
 sudo systemctl daemon-reload
-sudo systemctl enable rtmp-streamer.service
+sudo systemctl enable streamdrop.service
 
 # Display server information
 get_server_ip() {
@@ -303,18 +303,18 @@ echo "• ✅ Configuration saved to .env file"
 echo "• ✅ Auto-startup systemd service created and enabled"
 echo ""
 echo -e "${BLUE}🚀 How to start streaming:${NC}"
-echo "1. 🟢 Start now: sudo systemctl start rtmp-streamer"
-echo "2. 📊 Check status: sudo systemctl status rtmp-streamer"
-echo "3. 📝 View logs: sudo journalctl -u rtmp-streamer -f"
+echo "1. 🟢 Start now: sudo systemctl start streamdrop"
+echo "2. 📊 Check status: sudo systemctl status streamdrop"
+echo "3. 📝 View logs: sudo journalctl -u streamdrop -f"
 echo "4. 🌐 Web interface: http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
 echo ""
 echo -e "${YELLOW}🔧 Service management:${NC}"
-echo "• Start:   sudo systemctl start rtmp-streamer"
-echo "• Stop:    sudo systemctl stop rtmp-streamer"
-echo "• Restart: sudo systemctl restart rtmp-streamer"
-echo "• Status:  sudo systemctl status rtmp-streamer"
-echo "• Logs:    sudo journalctl -u rtmp-streamer -f"
-echo "• Disable auto-start: sudo systemctl disable rtmp-streamer"
+echo "• Start:   sudo systemctl start streamdrop"
+echo "• Stop:    sudo systemctl stop streamdrop"
+echo "• Restart: sudo systemctl restart streamdrop"
+echo "• Status:  sudo systemctl status streamdrop"
+echo "• Logs:    sudo journalctl -u streamdrop -f"
+echo "• Disable auto-start: sudo systemctl disable streamdrop"
 echo ""
 echo -e "${YELLOW}💡 For manual testing:${NC}"
 echo "• Activate venv: source venv/bin/activate"

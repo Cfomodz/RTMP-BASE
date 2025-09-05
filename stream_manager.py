@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Stream Manager for RTMP-BASE
+Enhanced Stream Manager for StreamDrop
 Supports multiple concurrent streams with individual configurations
 """
 
