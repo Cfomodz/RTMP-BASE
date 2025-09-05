@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTMP Stream Manager</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #4a5568;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 1.1em;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            color: #4a5568;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .stat-icon {
+            font-size: 2em;
+            float: right;
+            opacity: 0.7;
+        }
+
+        .streams-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #f56565, #e53e3e);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .stream-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .stream-card {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+
+        .stream-card:hover {
+            border-color: #cbd5e0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .stream-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .stream-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .stream-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-live {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-stopped {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-error {
+            background: #fbb6ce;
+            color: #702459;
+        }
+        
+        .status-recovering {
+            background: #fef5e7;
+            color: #c05621;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .stream-info {
+            margin-bottom: 15px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            color: #718096;
+            font-size: 0.9em;
+        }
+
+        .info-value {
+            color: #2d3748;
+            font-weight: 500;
+        }
+
+        .stream-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: #4a5568;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .form-help {
+            font-size: 0.8em;
+            color: #718096;
+            margin-top: 5px;
+        }
+        
+        .quality-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.5em;
+            color: #2d3748;
+        }
+
+        .close {
+            font-size: 2em;
+            cursor: pointer;
+            color: #718096;
+        }
+
+        .close:hover {
+            color: #2d3748;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 2000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-success {
+            background: #48bb78;
+        }
+
+        .toast-error {
+            background: #f56565;
+        }
+
+        .toast-info {
+            background: #4299e1;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .stream-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <i class="fas fa-broadcast-tower"></i>
+                RTMP Stream Manager
+            </h1>
+            <p>Professional 24/7 streaming platform with multi-stream management</p>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <i class="fas fa-play-circle stat-icon" style="color: #48bb78;"></i>
+                <h3>Active Streams</h3>
+                <div class="stat-value" id="activeStreams">0</div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-clock stat-icon" style="color: #4299e1;"></i>
+                <h3>Total Uptime</h3>
+                <div class="stat-value" id="totalUptime">0h</div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-eye stat-icon" style="color: #9f7aea;"></i>
+                <h3>Total Viewers</h3>
+                <div class="stat-value" id="totalViewers">--</div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-server stat-icon" style="color: #ed8936;"></i>
+                <h3>System Status</h3>
+                <div class="stat-value" id="systemStatus">OK</div>
+            </div>
+        </div>
+
+        <!-- Streams Management -->
+        <div class="streams-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-stream"></i>
+                    Stream Management
+                </h2>
+                <div style="display: flex; gap: 15px;">
+                    <a href="/analytics" class="btn btn-secondary">
+                        <i class="fas fa-chart-line"></i>
+                        Analytics
+                    </a>
+                    <button class="btn btn-primary" onclick="openCreateStreamModal()">
+                        <i class="fas fa-plus"></i>
+                        Create New Stream
+                    </button>
+                </div>
+            </div>
+
+            <div class="stream-grid" id="streamGrid">
+                <!-- Stream cards will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Stream Modal -->
+    <div id="createStreamModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Create New Stream</h3>
+                <span class="close" onclick="closeModal('createStreamModal')">&times;</span>
+            </div>
+            <form id="createStreamForm">
+                <div class="form-group">
+                    <label class="form-label">Stream Name</label>
+                    <input type="text" class="form-input" name="name" placeholder="My Awesome Stream" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Stream Title</label>
+                    <input type="text" class="form-input" name="title" placeholder="Live Stream Title (optional)">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-input" name="description" rows="3" placeholder="Stream description (optional)"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Stream Type</label>
+                    <select class="form-input" name="type" required>
+                        <option value="html">HTML/Web Content</option>
+                        <option value="pygame">Pygame Game</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Platform</label>
+                    <select class="form-input" name="platform" required>
+                        <option value="youtube">YouTube Live</option>
+                        <option value="twitch">Twitch</option>
+                        <option value="facebook">Facebook Live</option>
+                        <option value="custom">Custom RTMP</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="customRtmpGroup" style="display: none;">
+                    <label class="form-label">Custom RTMP URL</label>
+                    <input type="text" class="form-input" name="rtmp_url" placeholder="rtmp://your-server.com/live">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Stream Key</label>
+                    <input type="password" class="form-input" name="stream_key" placeholder="Your stream key" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Quality Preset</label>
+                    <select class="form-input" name="quality" required>
+                        <option value="low">Low (854x480, 1000k, 24fps)</option>
+                        <option value="medium" selected>Medium (1280x720, 2500k, 30fps)</option>
+                        <option value="high">High (1920x1080, 4000k, 30fps)</option>
+                        <option value="ultra">Ultra (1920x1080, 6000k, 60fps)</option>
+                        <option value="custom">Custom Settings</option>
+                    </select>
+                </div>
+                
+                <div id="customQualityGroup" style="display: none;">
+                    <div class="quality-controls">
+                        <div class="form-group">
+                            <label class="form-label">Resolution</label>
+                            <select class="form-input" name="custom_resolution">
+                                <option value="854x480">854x480 (480p)</option>
+                                <option value="1280x720">1280x720 (720p)</option>
+                                <option value="1920x1080">1920x1080 (1080p)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bitrate (kbps)</label>
+                            <input type="number" class="form-input" name="custom_bitrate" min="500" max="10000" value="2500">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Frame Rate</label>
+                            <select class="form-input" name="custom_framerate">
+                                <option value="24">24 fps</option>
+                                <option value="30">30 fps</option>
+                                <option value="60">60 fps</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Content Source</label>
+                    <input type="text" class="form-input" name="source" placeholder="URL or file path" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Thumbnail (Optional)</label>
+                    <input type="file" class="form-input" name="thumbnail" accept="image/*">
+                    <div class="form-help">Upload a thumbnail image for your stream</div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createStreamModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Stream</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Stream Modal -->
+    <div id="editStreamModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Stream</h3>
+                <span class="close" onclick="closeModal('editStreamModal')">&times;</span>
+            </div>
+            <form id="editStreamForm">
+                <input type="hidden" name="stream_id">
+                
+                <div class="form-group">
+                    <label class="form-label">Stream Name</label>
+                    <input type="text" class="form-input" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Stream Title</label>
+                    <input type="text" class="form-input" name="title" placeholder="Live Stream Title (optional)">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-input" name="description" rows="3" placeholder="Stream description (optional)"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Quality Preset</label>
+                    <select class="form-input" name="quality" required>
+                        <option value="low">Low (854x480, 1000k, 24fps)</option>
+                        <option value="medium">Medium (1280x720, 2500k, 30fps)</option>
+                        <option value="high">High (1920x1080, 4000k, 30fps)</option>
+                        <option value="ultra">Ultra (1920x1080, 6000k, 60fps)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Content Source</label>
+                    <input type="text" class="form-input" name="source" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Stream Key</label>
+                    <input type="password" class="form-input" name="stream_key" required>
+                    <div class="form-help">Leave blank to keep current key</div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editStreamModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Stream</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Global state
+        let streams = [];
+        let updateInterval;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStreams();
+            updateStats();
+            setupFormHandlers();
+            
+            // Set up auto-refresh
+            updateInterval = setInterval(() => {
+                loadStreams();
+                updateStats();
+            }, 5000);
+        });
+        
+        // Setup dynamic form handlers
+        function setupFormHandlers() {
+            // Platform selection handler
+            const platformSelect = document.querySelector('select[name="platform"]');
+            const customRtmpGroup = document.getElementById('customRtmpGroup');
+            
+            if (platformSelect) {
+                platformSelect.addEventListener('change', function() {
+                    if (this.value === 'custom') {
+                        customRtmpGroup.style.display = 'block';
+                    } else {
+                        customRtmpGroup.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Quality preset handler
+            const qualitySelect = document.querySelector('select[name="quality"]');
+            const customQualityGroup = document.getElementById('customQualityGroup');
+            
+            if (qualitySelect) {
+                qualitySelect.addEventListener('change', function() {
+                    if (this.value === 'custom') {
+                        customQualityGroup.style.display = 'block';
+                    } else {
+                        customQualityGroup.style.display = 'none';
+                    }
+                });
+            }
+        }
+
+        // Load streams from server
+        async function loadStreams() {
+            try {
+                const response = await fetch('/api/streams');
+                if (response.ok) {
+                    streams = await response.json();
+                    renderStreams();
+                }
+            } catch (error) {
+                console.error('Error loading streams:', error);
+            }
+        }
+
+        // Render stream cards
+        function renderStreams() {
+            const grid = document.getElementById('streamGrid');
+            
+            if (streams.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #718096;">
+                        <i class="fas fa-stream" style="font-size: 3em; margin-bottom: 20px; opacity: 0.3;"></i>
+                        <h3>No streams configured</h3>
+                        <p>Create your first stream to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = streams.map(stream => `
+                <div class="stream-card">
+                    <div class="stream-header">
+                        <div class="stream-title">${stream.name}</div>
+                        <span class="stream-status status-${stream.status}">${stream.status}</span>
+                    </div>
+                    <div class="stream-info">
+                        <div class="info-row">
+                            <span class="info-label">Platform</span>
+                            <span class="info-value">${stream.platform.charAt(0).toUpperCase() + stream.platform.slice(1)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Type</span>
+                            <span class="info-value">${stream.type.toUpperCase()}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Quality</span>
+                            <span class="info-value">${stream.quality || 'Medium'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Source</span>
+                            <span class="info-value" title="${stream.source}">${stream.source.length > 30 ? stream.source.substring(0, 30) + '...' : stream.source}</span>
+                        </div>
+                        ${stream.title ? `
+                        <div class="info-row">
+                            <span class="info-label">Title</span>
+                            <span class="info-value" title="${stream.title}">${stream.title.length > 25 ? stream.title.substring(0, 25) + '...' : stream.title}</span>
+                        </div>` : ''}
+                        <div class="info-row">
+                            <span class="info-label">Uptime</span>
+                            <span class="info-value">${stream.uptime || '0m'}</span>
+                        </div>
+                    </div>
+                    <div class="stream-controls">
+                        ${stream.status === 'stopped' ? 
+                            `<button class="btn btn-success" onclick="startStream('${stream.id}')">
+                                <i class="fas fa-play"></i> Start
+                            </button>` : 
+                            `<button class="btn btn-danger" onclick="stopStream('${stream.id}')">
+                                <i class="fas fa-stop"></i> Stop
+                            </button>`
+                        }
+                        <button class="btn btn-secondary" onclick="editStream('${stream.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        ${stream.status === 'live' || stream.status === 'error' ? 
+                            `<button class="btn btn-secondary" onclick="recoverStream('${stream.id}')">
+                                <i class="fas fa-first-aid"></i> Recover
+                            </button>` : ''
+                        }
+                        <button class="btn btn-secondary" onclick="deleteStream('${stream.id}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update statistics
+        function updateStats() {
+            const activeCount = streams.filter(s => s.status === 'live').length;
+            document.getElementById('activeStreams').textContent = activeCount;
+            
+            // Calculate total uptime (placeholder for now)
+            const totalMinutes = streams.reduce((sum, stream) => {
+                return sum + (stream.uptimeMinutes || 0);
+            }, 0);
+            
+            const hours = Math.floor(totalMinutes / 60);
+            document.getElementById('totalUptime').textContent = hours + 'h';
+        }
+
+        // Modal functions
+        function openCreateStreamModal() {
+            document.getElementById('createStreamModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Stream management functions
+        async function startStream(streamId) {
+            try {
+                const response = await fetch(`/api/streams/${streamId}/start`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Stream started successfully!', 'success');
+                    loadStreams();
+                } else {
+                    showToast(data.message || 'Failed to start stream', 'error');
+                }
+            } catch (error) {
+                showToast('Error starting stream', 'error');
+            }
+        }
+
+        async function stopStream(streamId) {
+            try {
+                const response = await fetch(`/api/streams/${streamId}/stop`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Stream stopped successfully!', 'success');
+                    loadStreams();
+                } else {
+                    showToast(data.message || 'Failed to stop stream', 'error');
+                }
+            } catch (error) {
+                showToast('Error stopping stream', 'error');
+            }
+        }
+
+        function editStream(streamId) {
+            // Find the stream data
+            const stream = streams.find(s => s.id === streamId);
+            if (!stream) {
+                showToast('Stream not found', 'error');
+                return;
+            }
+            
+            // Populate the edit form
+            const form = document.getElementById('editStreamForm');
+            form.stream_id.value = stream.id;
+            form.name.value = stream.name || '';
+            form.title.value = stream.title || '';
+            form.description.value = stream.description || '';
+            form.quality.value = stream.quality || 'medium';
+            form.source.value = stream.source || '';
+            form.stream_key.value = ''; // Don't pre-fill sensitive data
+            
+            // Show the modal
+            document.getElementById('editStreamModal').style.display = 'block';
+        }
+
+        async function recoverStream(streamId) {
+            if (!confirm('Attempt automatic recovery for this stream?')) return;
+            
+            try {
+                showToast('Starting recovery attempt...', 'info');
+                
+                const response = await fetch(`/api/streams/${streamId}/recover`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`Recovery successful: ${data.message}`, 'success');
+                    loadStreams();
+                } else {
+                    showToast(`Recovery failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showToast('Error during recovery attempt', 'error');
+            }
+        }
+
+        async function deleteStream(streamId) {
+            if (!confirm('Are you sure you want to delete this stream?')) return;
+            
+            try {
+                const response = await fetch(`/api/streams/${streamId}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Stream deleted successfully!', 'success');
+                    loadStreams();
+                } else {
+                    showToast(data.message || 'Failed to delete stream', 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting stream', 'error');
+            }
+        }
+
+        // Create stream form handler
+        document.getElementById('createStreamForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const streamData = Object.fromEntries(formData.entries());
+            
+            // Handle custom quality settings
+            if (streamData.quality === 'custom') {
+                streamData.custom_settings = {
+                    resolution: streamData.custom_resolution,
+                    bitrate: streamData.custom_bitrate,
+                    framerate: streamData.custom_framerate
+                };
+            }
+            
+            try {
+                const response = await fetch('/api/streams', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(streamData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Stream created successfully!', 'success');
+                    closeModal('createStreamModal');
+                    this.reset();
+                    loadStreams();
+                } else {
+                    showToast(data.message || 'Failed to create stream', 'error');
+                }
+            } catch (error) {
+                showToast('Error creating stream', 'error');
+            }
+        });
+        
+        // Edit stream form handler
+        document.getElementById('editStreamForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const streamData = Object.fromEntries(formData.entries());
+            const streamId = streamData.stream_id;
+            delete streamData.stream_id;
+            
+            // Don't send empty stream key
+            if (!streamData.stream_key) {
+                delete streamData.stream_key;
+            }
+            
+            try {
+                const response = await fetch(`/api/streams/${streamId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(streamData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Stream updated successfully!', 'success');
+                    closeModal('editStreamModal');
+                    loadStreams();
+                } else {
+                    showToast(data.message || 'Failed to update stream', 'error');
+                }
+            } catch (error) {
+                showToast('Error updating stream', 'error');
+            }
+        });
+
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast toast-${type} show`;
+            
+            setTimeout(() => {
+                toast.className = `toast toast-${type}`;
+            }, 3000);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

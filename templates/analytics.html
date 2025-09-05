@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Analytics Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #4a5568;
+            font-size: 2.5em;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .metric-title {
+            color: #4a5568;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-icon {
+            font-size: 1.5em;
+            opacity: 0.7;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .metric-change {
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+
+        .metric-up {
+            color: #48bb78;
+        }
+
+        .metric-down {
+            color: #f56565;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+
+        .alerts-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .alert-critical {
+            background: #fed7d7;
+            border-left-color: #f56565;
+        }
+
+        .alert-warning {
+            background: #fefcbf;
+            border-left-color: #ecc94b;
+        }
+
+        .alert-info {
+            background: #bee3f8;
+            border-left-color: #4299e1;
+        }
+
+        .alert-content h4 {
+            margin: 0 0 5px 0;
+            font-size: 1em;
+        }
+
+        .alert-content p {
+            margin: 0;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .alert-time {
+            font-size: 0.8em;
+            opacity: 0.6;
+            white-space: nowrap;
+            margin-left: 15px;
+        }
+
+        .streams-performance {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .stream-metrics {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .stream-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .stream-name {
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .stream-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-live {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-stopped {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .metric-small {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .metric-small-label {
+            font-size: 0.7em;
+            color: #718096;
+            text-transform: uppercase;
+        }
+
+        .metric-small-value {
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #2d3748;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+            color: #718096;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .overview-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <i class="fas fa-chart-line"></i>
+                Stream Analytics
+            </h1>
+            <div class="nav-buttons">
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-stream"></i>
+                    Stream Manager
+                </a>
+                <button class="btn btn-primary" onclick="refreshDashboard()">
+                    <i class="fas fa-sync"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Overview Metrics -->
+        <div class="overview-grid" id="overviewGrid">
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Active Streams</span>
+                    <i class="fas fa-play-circle metric-icon" style="color: #48bb78;"></i>
+                </div>
+                <div class="metric-value" id="activeStreamsMetric">--</div>
+                <div class="metric-change" id="activeStreamsChange"></div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Total Uptime</span>
+                    <i class="fas fa-clock metric-icon" style="color: #4299e1;"></i>
+                </div>
+                <div class="metric-value" id="totalUptimeMetric">--h</div>
+                <div class="metric-change" id="uptimeChange"></div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Active Alerts</span>
+                    <i class="fas fa-exclamation-triangle metric-icon" style="color: #ecc94b;"></i>
+                </div>
+                <div class="metric-value" id="alertsMetric">--</div>
+                <div class="metric-change" id="alertsChange"></div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">System Status</span>
+                    <i class="fas fa-server metric-icon" style="color: #9f7aea;"></i>
+                </div>
+                <div class="metric-value" id="systemStatusMetric">--</div>
+                <div class="metric-change" id="systemChange"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Performance Charts -->
+            <div class="chart-section">
+                <h3 class="section-title">
+                    <i class="fas fa-chart-area"></i>
+                    Performance Trends
+                </h3>
+                
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="uptimeChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            <div class="alerts-section">
+                <h3 class="section-title">
+                    <i class="fas fa-bell"></i>
+                    Active Alerts
+                </h3>
+                <div id="alertsList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading alerts...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stream Performance -->
+        <div class="streams-performance">
+            <h3 class="section-title">
+                <i class="fas fa-tachometer-alt"></i>
+                Stream Performance
+            </h3>
+            <div class="performance-grid" id="streamPerformanceGrid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading stream metrics...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let performanceChart;
+        let uptimeChart;
+        let refreshInterval;
+        let currentStreams = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+            
+            // Set up auto-refresh every 30 seconds
+            refreshInterval = setInterval(refreshDashboard, 30000);
+        });
+
+        function initializeDashboard() {
+            loadOverview();
+            loadAlerts();
+            loadStreamPerformance();
+            initializeCharts();
+        }
+
+        function refreshDashboard() {
+            loadOverview();
+            loadAlerts();
+            loadStreamPerformance();
+            updateCharts();
+        }
+
+        async function loadOverview() {
+            try {
+                const response = await fetch('/api/analytics/overview');
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Error loading overview:', data.error);
+                    return;
+                }
+
+                // Update overview metrics
+                document.getElementById('activeStreamsMetric').textContent = data.active_streams || 0;
+                document.getElementById('totalUptimeMetric').textContent = (data.total_uptime_hours || 0) + 'h';
+                document.getElementById('alertsMetric').textContent = data.active_alerts || 0;
+                document.getElementById('systemStatusMetric').textContent = data.system_status || 'Unknown';
+                
+                // Update metric colors based on status
+                const alertsCard = document.getElementById('alertsMetric');
+                if (data.active_alerts > 0) {
+                    alertsCard.style.color = '#f56565';
+                } else {
+                    alertsCard.style.color = '#48bb78';
+                }
+
+                const statusCard = document.getElementById('systemStatusMetric');
+                if (data.system_status === 'operational') {
+                    statusCard.style.color = '#48bb78';
+                    statusCard.textContent = 'Operational';
+                } else {
+                    statusCard.style.color = '#f56565';
+                    statusCard.textContent = 'Issues';
+                }
+
+            } catch (error) {
+                console.error('Error loading overview:', error);
+            }
+        }
+
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const alerts = await response.json();
+                
+                const alertsList = document.getElementById('alertsList');
+                
+                if (alerts.error) {
+                    alertsList.innerHTML = '<p>Error loading alerts: ' + alerts.error + '</p>';
+                    return;
+                }
+
+                if (alerts.length === 0) {
+                    alertsList.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #718096;">
+                            <i class="fas fa-check-circle" style="font-size: 3em; color: #48bb78; margin-bottom: 15px;"></i>
+                            <h3>All Clear!</h3>
+                            <p>No active alerts at this time</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                alertsList.innerHTML = alerts.map(alert => {
+                    const alertClass = getSeverityClass(alert.severity);
+                    const timeAgo = getTimeAgo(alert.timestamp);
+                    
+                    return `
+                        <div class="alert-item ${alertClass}">
+                            <div class="alert-content">
+                                <h4>${alert.alert_type.replace('_', ' ').toUpperCase()}</h4>
+                                <p>${alert.message}</p>
+                            </div>
+                            <div class="alert-time">${timeAgo}</div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+                document.getElementById('alertsList').innerHTML = '<p>Error loading alerts</p>';
+            }
+        }
+
+        async function loadStreamPerformance() {
+            try {
+                const response = await fetch('/api/streams');
+                const streams = await response.json();
+                currentStreams = streams;
+                
+                const grid = document.getElementById('streamPerformanceGrid');
+                
+                if (streams.length === 0) {
+                    grid.innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #718096;">
+                            <i class="fas fa-stream" style="font-size: 3em; margin-bottom: 15px; opacity: 0.3;"></i>
+                            <h3>No streams configured</h3>
+                            <p>Create streams to see performance metrics</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const performanceHtml = await Promise.all(
+                    streams.map(async stream => {
+                        // Get recent metrics for live streams
+                        let metrics = { fps: 0, bitrate: 0, cpu_usage: 0, memory_usage: 0 };
+                        
+                        if (stream.status === 'live') {
+                            try {
+                                const metricsResponse = await fetch(`/api/metrics/${stream.id}?minutes=5`);
+                                const recentMetrics = await metricsResponse.json();
+                                
+                                if (recentMetrics.length > 0) {
+                                    const latest = recentMetrics[0];
+                                    metrics = {
+                                        fps: latest.fps || 0,
+                                        bitrate: latest.bitrate || 0,
+                                        cpu_usage: latest.cpu_usage || 0,
+                                        memory_usage: latest.memory_usage || 0
+                                    };
+                                }
+                            } catch (e) {
+                                console.warn('Error loading metrics for stream:', stream.id);
+                            }
+                        }
+
+                        return `
+                            <div class="stream-metrics">
+                                <div class="stream-header">
+                                    <span class="stream-name">${stream.name}</span>
+                                    <span class="stream-status status-${stream.status}">${stream.status.toUpperCase()}</span>
+                                </div>
+                                <div class="metrics-row">
+                                    <div class="metric-small">
+                                        <div class="metric-small-label">FPS</div>
+                                        <div class="metric-small-value">${metrics.fps.toFixed(0)}</div>
+                                    </div>
+                                    <div class="metric-small">
+                                        <div class="metric-small-label">Bitrate</div>
+                                        <div class="metric-small-value">${metrics.bitrate.toFixed(0)}k</div>
+                                    </div>
+                                    <div class="metric-small">
+                                        <div class="metric-small-label">Uptime</div>
+                                        <div class="metric-small-value">${stream.uptime || '0m'}</div>
+                                    </div>
+                                </div>
+                                <div class="metrics-row">
+                                    <div class="metric-small">
+                                        <div class="metric-small-label">CPU</div>
+                                        <div class="metric-small-value">${metrics.cpu_usage.toFixed(1)}%</div>
+                                    </div>
+                                    <div class="metric-small">
+                                        <div class="metric-small-label">Memory</div>
+                                        <div class="metric-small-value">${metrics.memory_usage.toFixed(0)}MB</div>
+                                    </div>
+                                    <div class="metric-small">
+                                        <div class="metric-small-label">Quality</div>
+                                        <div class="metric-small-value">${stream.quality || 'Medium'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })
+                );
+
+                grid.innerHTML = performanceHtml.join('');
+
+            } catch (error) {
+                console.error('Error loading stream performance:', error);
+                document.getElementById('streamPerformanceGrid').innerHTML = '<p>Error loading stream data</p>';
+            }
+        }
+
+        function initializeCharts() {
+            const ctx1 = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU Usage (%)',
+                        data: [],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Memory (MB)',
+                        data: [],
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'System Performance (Last 30 minutes)'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('uptimeChart').getContext('2d');
+            uptimeChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Uptime (hours)',
+                        data: [],
+                        backgroundColor: 'rgba(72, 187, 120, 0.8)',
+                        borderColor: '#48bb78',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Stream Uptime Comparison'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            // Update performance chart with mock data for now
+            // In production, this would fetch real metrics from the API
+            const now = new Date();
+            const labels = [];
+            const cpuData = [];
+            const memoryData = [];
+
+            for (let i = 5; i >= 0; i--) {
+                const time = new Date(now - i * 5 * 60 * 1000);
+                labels.push(time.toLocaleTimeString('en-US', { hour12: false }));
+                cpuData.push(Math.random() * 40 + 20);
+                memoryData.push(Math.random() * 200 + 100);
+            }
+
+            performanceChart.data.labels = labels;
+            performanceChart.data.datasets[0].data = cpuData;
+            performanceChart.data.datasets[1].data = memoryData;
+            performanceChart.update();
+
+            // Update uptime chart
+            const streamNames = currentStreams.slice(0, 6).map(s => s.name);
+            const streamUptimes = currentStreams.slice(0, 6).map(s => s.uptime_seconds / 3600 || 0);
+
+            uptimeChart.data.labels = streamNames;
+            uptimeChart.data.datasets[0].data = streamUptimes;
+            uptimeChart.update();
+        }
+
+        function getSeverityClass(severity) {
+            switch (severity) {
+                case 'critical': return 'alert-critical';
+                case 'warning': return 'alert-warning';
+                default: return 'alert-info';
+            }
+        }
+
+        function getTimeAgo(timestamp) {
+            const now = new Date();
+            const alertTime = new Date(timestamp);
+            const diffMs = now - alertTime;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffDays > 0) return `${diffDays}d ago`;
+            if (diffHours > 0) return `${diffHours}h ago`;
+            if (diffMins > 0) return `${diffMins}m ago`;
+            return 'Just now';
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>
