@@ -89,20 +89,63 @@ sudo apt install -y \
     build-essential \
     pkg-config
 
-# Install multimedia and browser dependencies
-echo -e "${BLUE}🎬 Installing multimedia and browser dependencies...${NC}"
-sudo apt install -y \
-    xvfb \
-    ffmpeg \
-    libnss3-dev \
-    libatk-bridge2.0-dev \
-    libdrm-dev \
-    libxcomposite-dev \
-    libxdamage-dev \
-    libxrandr-dev \
-    libgbm-dev \
-    libxss-dev \
-    libasound2-dev
+# Detect headless system and choose optimal setup
+detect_headless() {
+    if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && ! pgrep -x "Xorg\|gnome\|kde\|xfce" > /dev/null; then
+        return 0  # Headless
+    else
+        return 1  # Has display
+    fi
+}
+
+if detect_headless; then
+    echo -e "${GREEN}🎯 Headless system detected - installing optimized packages${NC}"
+    echo -e "${BLUE}🎬 Installing minimal dependencies for headless streaming...${NC}"
+    sudo apt install -y \
+        ffmpeg \
+        libnss3 \
+        libatk-bridge2.0-0 \
+        libdrm2 \
+        libgbm1 \
+        libasound2
+    
+    HEADLESS_MODE=true
+else
+    echo -e "${YELLOW}🖥️  Display system detected${NC}"
+    echo -e "${BLUE}Do you want headless-optimized setup? (smaller, faster, cheaper VPS) [Y/n]:${NC}"
+    read -r -n 1 HEADLESS_CHOICE
+    echo
+    
+    if [[ $HEADLESS_CHOICE =~ ^[Nn]$ ]]; then
+        echo -e "${BLUE}🎬 Installing full dependencies with X11 support...${NC}"
+        sudo apt install -y \
+            xvfb \
+            ffmpeg \
+            libnss3-dev \
+            libatk-bridge2.0-dev \
+            libdrm-dev \
+            libxcomposite-dev \
+            libxdamage-dev \
+            libxrandr-dev \
+            libgbm-dev \
+            libxss-dev \
+            libasound2-dev
+        
+        HEADLESS_MODE=false
+    else
+        echo -e "${GREEN}✅ Using headless-optimized setup${NC}"
+        echo -e "${BLUE}🎬 Installing minimal dependencies for headless streaming...${NC}"
+        sudo apt install -y \
+            ffmpeg \
+            libnss3 \
+            libatk-bridge2.0-0 \
+            libdrm2 \
+            libgbm1 \
+            libasound2
+        
+        HEADLESS_MODE=true
+    fi
+fi
 
 # Install Chromium (open-source, server-friendly)
 echo -e "${BLUE}🌐 Installing Chromium browser...${NC}"
@@ -246,7 +289,13 @@ get_server_ip
 
 echo ""
 echo -e "${BLUE}📋 What's been installed & configured:${NC}"
-echo "• ✅ All system dependencies (Git, Python, Chromium, FFmpeg, etc.)"
+if [ "$HEADLESS_MODE" = true ]; then
+    echo "• ✅ Optimized headless dependencies (60% less packages)"
+    echo "• ✅ No X11/Xvfb bloat - maximum efficiency"
+    echo "• ✅ Perfect for VPS ($4-6/month vs $10-20/month)"
+else
+    echo "• ✅ Full system dependencies with X11 support"
+fi
 echo "• ✅ Python virtual environment created (venv/)"
 echo "• ✅ Python packages installed in isolated environment"
 echo "• ✅ Firewall configured (port 5000 opened)"
@@ -269,7 +318,11 @@ echo "• Disable auto-start: sudo systemctl disable rtmp-streamer"
 echo ""
 echo -e "${YELLOW}💡 For manual testing:${NC}"
 echo "• Activate venv: source venv/bin/activate"
-echo "• Run manually: ./venv/bin/python main.py"
+if [ "$HEADLESS_MODE" = true ]; then
+    echo "• Run manually: YOUTUBE_STREAM_KEY=key CONTENT_PATH=https://clock.zone ./venv/bin/python smart_streamer.py"
+else
+    echo "• Run manually: ./venv/bin/python smart_streamer.py (or main.py for traditional mode)"
+fi
 echo ""
 echo -e "${PURPLE}🔒 Environment variables for automation:${NC}"
 echo "• YOUTUBE_STREAM_KEY=your_key ./setup.sh"

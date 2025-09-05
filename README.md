@@ -1,17 +1,17 @@
 # RTMP-BASE
 
-Stream any website, PyGame, or local HTML file to YouTube Live 24/7.
+Stream any website, PyGame, or local HTML file to YouTube 24/7.
 
 ## Quick Start
 
 **1. Clone & Setup:**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Cfomodz/RTMP-BASE.git
 cd RTMP-BASE
 chmod +x setup.sh && ./setup.sh
 ```
 
-**2. Get your YouTube Stream Key from [YouTube Studio](https://studio.youtube.com) → Go Live**
+**2. Get your YouTube Stream Key from [YouTube Studio](https://studio.youtube.com)**
 
 **3. Start Streaming:**
 ```bash
