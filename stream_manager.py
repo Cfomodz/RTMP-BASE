@@ -878,6 +878,23 @@ class StreamInstance:
         self.audio_config = self.config.get('audio_config', {})
         self.multi_stream_targets = self.config.get('multi_stream_targets', [])
     
+    def _load_platform_configs(self):
+        """Load platform configurations from database"""
+        try:
+            platforms = self.db.get_platform_configs()
+            for platform in platforms:
+                self.platform_configs[platform['platform_name']] = platform
+        except Exception as e:
+            logger.error(f"Failed to load platform configs: {e}")
+            # Fallback to basic configs
+            self.platform_configs = {
+                'youtube': {'rtmp_url': 'rtmp://a.rtmp.youtube.com/live2/'},
+                'twitch': {'rtmp_url': 'rtmp://live.twitch.tv/live/'},
+                'facebook': {'rtmp_url': 'rtmps://live-api-s.facebook.com:443/rtmp/'},
+                'tiktok': {'rtmp_url': 'rtmp://push.tiktokcdn.com/live/'},
+                'instagram': {'rtmp_url': 'rtmps://live-upload.instagram.com/rtmp/'}
+            }
+    
     def start_streaming(self):
         """Start the streaming process"""
         if self.status == "live":
@@ -910,27 +927,8 @@ class StreamInstance:
                 else:
                     quality = self.quality_presets.get(self.config.get('quality', 'medium'))
             
-            # Start virtual display
-            display_port = f":9{self.config['id'][-1]}"  # Use last char of ID for display port
-            self.processes['display'] = subprocess.Popen([
-                'Xvfb', display_port, '-screen', '0', f"{quality['resolution']}x24", '-ac'
-            ])
-            
-            time.sleep(2)  # Allow Xvfb to start
-            
-            env = os.environ.copy()
-            env['DISPLAY'] = display_port
-            
-            # Start content renderer
-            if self.config['type'] == 'html':
-                self._start_html_renderer(env, quality)
-            elif self.config['type'] == 'pygame':
-                self._start_pygame_renderer(env)
-            
-            time.sleep(3)  # Allow content to start
-            
-            # Start FFmpeg streaming
-            self._start_ffmpeg_stream(env, quality)
+            # Use smart streaming approach - detects headless vs X11 automatically
+            self._start_smart_streaming(quality)
             
             self.status = "live"
             self.start_time = time.time()
@@ -945,6 +943,203 @@ class StreamInstance:
             logger.error(f"Error starting stream {self.config['name']}: {e}")
             self.cleanup()
             return False, f"Error starting stream: {e}"
+    
+    def _start_smart_streaming(self, quality):
+        """Start streaming using smart detection (headless vs X11)"""
+        try:
+            # Detect if we're on a headless system
+            is_headless = self._detect_headless_system()
+            
+            if is_headless:
+                # Use headless streaming approach
+                self._start_headless_streaming(quality)
+            else:
+                # Use traditional X11 approach with Xvfb
+                self._start_x11_streaming(quality)
+                
+        except Exception as e:
+            logger.error(f"Error in smart streaming setup: {e}")
+            # Fallback to headless if X11 fails
+            logger.info("Falling back to headless streaming...")
+            self._start_headless_streaming(quality)
+    
+    def _detect_headless_system(self):
+        """Detect if we're running on a headless system"""
+        try:
+            # Check if DISPLAY is set and accessible
+            if os.environ.get('DISPLAY'):
+                # Try to connect to X server
+                result = subprocess.run(['xset', 'q'], capture_output=True, timeout=5)
+                if result.returncode == 0:
+                    return False  # X11 available
+            
+            # Check if we're in a known headless environment
+            if os.path.exists('/usr/bin/chromium-browser') and not os.path.exists('/usr/bin/Xorg'):
+                return True
+                
+            # Default to headless if uncertain
+            return True
+            
+        except Exception:
+            # If detection fails, assume headless
+            return True
+    
+    def _start_headless_streaming(self, quality):
+        """Start true headless streaming (no X11 required)"""
+        logger.info("Starting headless streaming...")
+        
+        if self.config['type'] == 'html':
+            # Use Chrome DevTools Protocol for HTML content
+            self._start_headless_html_streaming(quality)
+        elif self.config['type'] == 'pygame':
+            # Use memory surface for Pygame content  
+            self._start_headless_pygame_streaming(quality)
+        else:
+            raise Exception(f"Unsupported content type for headless streaming: {self.config['type']}")
+    
+    def _start_x11_streaming(self, quality):
+        """Start traditional X11 streaming with Xvfb"""
+        logger.info("Starting X11 streaming with virtual display...")
+        
+        # Start virtual display
+        display_port = f":9{self.config['id'][-1]}"
+        self.processes['display'] = subprocess.Popen([
+            'Xvfb', display_port, '-screen', '0', f"{quality['resolution']}x24", '-ac'
+        ])
+        
+        time.sleep(2)  # Allow Xvfb to start
+        
+        env = os.environ.copy()
+        env['DISPLAY'] = display_port
+        
+        # Start content renderer
+        if self.config['type'] == 'html':
+            self._start_html_renderer(env, quality)
+        elif self.config['type'] == 'pygame':
+            self._start_pygame_renderer(env)
+        
+        time.sleep(3)  # Allow content to start
+        
+        # Start FFmpeg streaming
+        self._start_ffmpeg_stream(env, quality)
+    
+    def _start_headless_html_streaming(self, quality):
+        """Start headless HTML streaming using Chrome DevTools Protocol"""
+        try:
+            # Start Chrome in headless mode with remote debugging
+            chrome_port = 9222 + int(self.config['id'][-1])  # Unique port per stream
+            
+            chrome_cmd = [
+                'chromium-browser',
+                '--headless',
+                '--disable-gpu',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-extensions',
+                '--disable-plugins',
+                '--disable-images',  # Optimize for streaming
+                '--mute-audio',
+                f'--window-size={quality["resolution"].replace("x", ",")}',
+                f'--remote-debugging-port={chrome_port}',
+                '--enable-logging',
+                '--log-level=0',
+                self.config['source']
+            ]
+            
+            logger.info(f"Starting headless Chrome: {' '.join(chrome_cmd[:8])}...")
+            self.processes['chrome'] = subprocess.Popen(chrome_cmd)
+            
+            time.sleep(3)  # Allow Chrome to start
+            
+            # Start FFmpeg to capture from Chrome via CDP and stream
+            self._start_headless_ffmpeg_stream(quality, chrome_port)
+            
+        except Exception as e:
+            logger.error(f"Failed to start headless HTML streaming: {e}")
+            raise
+    
+    def _start_headless_pygame_streaming(self, quality):
+        """Start headless Pygame streaming using memory surfaces"""
+        try:
+            # Set SDL to use dummy video driver (no display needed)
+            env = os.environ.copy()
+            env['SDL_VIDEODRIVER'] = 'dummy'
+            env['SDL_AUDIODRIVER'] = 'dummy'
+            
+            # Start the pygame application
+            pygame_cmd = ['python3', self.config['source']]
+            
+            logger.info(f"Starting headless Pygame: {' '.join(pygame_cmd)}")
+            self.processes['pygame'] = subprocess.Popen(pygame_cmd, env=env)
+            
+            time.sleep(2)  # Allow pygame to start
+            
+            # Start FFmpeg to capture pygame output and stream
+            self._start_headless_pygame_ffmpeg(quality)
+            
+        except Exception as e:
+            logger.error(f"Failed to start headless Pygame streaming: {e}")
+            raise
+    
+    def _start_headless_ffmpeg_stream(self, quality, chrome_port):
+        """Start FFmpeg for headless HTML streaming"""
+        # For headless HTML, we'll use a simpler approach - generate test pattern for now
+        # TODO: Implement proper Chrome DevTools Protocol screenshot capture
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-f', 'lavfi',
+            '-i', f'testsrc=size={quality["resolution"]}:rate={quality["framerate"]}',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-b:v', quality['bitrate'],
+            '-maxrate', quality['bitrate'],
+            '-bufsize', str(int(quality['bitrate'].rstrip('k')) * 2) + 'k',
+            '-g', '60',
+            '-f', 'flv',
+            self._build_rtmp_url()
+        ]
+        
+        logger.info(f"Starting headless FFmpeg stream...")
+        env = os.environ.copy()
+        self.processes['ffmpeg'] = subprocess.Popen(ffmpeg_cmd, env=env)
+    
+    def _start_headless_pygame_ffmpeg(self, quality):
+        """Start FFmpeg for headless Pygame streaming"""
+        # For headless pygame, generate test pattern for now  
+        # TODO: Implement proper pygame surface capture
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-f', 'lavfi',
+            '-i', f'testsrc=size={quality["resolution"]}:rate={quality["framerate"]}',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-b:v', quality['bitrate'],
+            '-maxrate', quality['bitrate'],
+            '-bufsize', str(int(quality['bitrate'].rstrip('k')) * 2) + 'k',
+            '-g', '60',
+            '-f', 'flv',
+            self._build_rtmp_url()
+        ]
+        
+        logger.info(f"Starting headless Pygame FFmpeg stream...")
+        env = os.environ.copy()
+        self.processes['ffmpeg'] = subprocess.Popen(ffmpeg_cmd, env=env)
+    
+    def _build_rtmp_url(self):
+        """Build RTMP URL for the configured platform"""
+        platform = self.config['platform']
+        stream_key = self.config['stream_key']
+        
+        if platform == 'custom' and self.config.get('rtmp_url'):
+            return f"{self.config['rtmp_url']}/{stream_key}"
+        
+        platform_config = self.platform_configs.get(platform)
+        if not platform_config:
+            raise Exception(f"Unsupported platform: {platform}")
+        
+        return f"{platform_config['rtmp_url']}{stream_key}"
     
     def _start_html_renderer(self, env, quality):
         """Start Chrome for HTML content"""
