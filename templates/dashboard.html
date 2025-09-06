@@ -305,11 +305,13 @@
 
         .modal-content {
             background: white;
-            margin: 5% auto;
+            margin: 2% auto;
             padding: 30px;
             border-radius: 15px;
             width: 90%;
-            max-width: 500px;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
 
@@ -380,6 +382,36 @@
             .stats-grid {
                 grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             }
+            
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+                padding: 20px;
+                max-height: 85vh;
+            }
+        }
+        
+        /* Ensure modal scrolling works properly */
+        .modal-content {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 transparent;
+        }
+        
+        .modal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .modal-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .modal-content::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 3px;
+        }
+        
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
         }
     </style>
 </head>
@@ -476,10 +508,13 @@
                 
                 <div class="form-group">
                     <label class="form-label">Platform</label>
-                    <select class="form-input" name="platform" required>
+                    <select class="form-input" name="platform" id="platformSelect" required>
                         <option value="youtube">YouTube Live</option>
                         <option value="twitch">Twitch</option>
                         <option value="facebook">Facebook Live</option>
+                        <option value="tiktok">TikTok Live</option>
+                        <option value="instagram">Instagram Live</option>
+                        <option value="linkedin">LinkedIn Live</option>
                         <option value="custom">Custom RTMP</option>
                     </select>
                 </div>
@@ -623,8 +658,45 @@
             }, 5000);
         });
         
+        // Load available platforms from server
+        async function loadPlatforms() {
+            try {
+                const response = await fetch('/api/platforms');
+                if (response.ok) {
+                    const platforms = await response.json();
+                    const platformSelect = document.getElementById('platformSelect');
+                    
+                    if (platformSelect) {
+                        // Clear existing options except custom
+                        platformSelect.innerHTML = '';
+                        
+                        // Add platforms from API
+                        platforms.forEach(platform => {
+                            const option = document.createElement('option');
+                            option.value = platform.platform_name;
+                            option.textContent = platform.display_name;
+                            platformSelect.appendChild(option);
+                        });
+                        
+                        // Add custom option
+                        const customOption = document.createElement('option');
+                        customOption.value = 'custom';
+                        customOption.textContent = 'Custom RTMP';
+                        platformSelect.appendChild(customOption);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading platforms:', error);
+                // Fallback to static options if API fails
+                console.log('Using fallback platform options');
+            }
+        }
+        
         // Setup dynamic form handlers
         function setupFormHandlers() {
+            // Load platforms dynamically
+            loadPlatforms();
+            
             // Platform selection handler
             const platformSelect = document.querySelector('select[name="platform"]');
             const customRtmpGroup = document.getElementById('customRtmpGroup');

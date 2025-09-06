@@ -778,6 +778,18 @@ class StreamDatabase:
                     'framerate': 30,
                     'keyframe_interval': 2
                 })
+            },
+            {
+                'platform_name': 'tiktok',
+                'display_name': 'TikTok Live',
+                'rtmp_url': 'rtmp://push.tiktokcdn.com/live/',
+                'supports_auth': True,
+                'max_bitrate': 4000,
+                'recommended_settings': json.dumps({
+                    'resolution': '1080x1920',
+                    'framerate': 30,
+                    'keyframe_interval': 2
+                })
             }
         ]
         
@@ -1759,6 +1771,9 @@ stream_manager = StreamManager()
 
 def check_auth(username, password):
     """Check if username and password match stored credentials"""
+    # Add 1-second delay to prevent timing attacks and PRNG exploitation
+    time.sleep(1)
+    
     try:
         if os.path.exists('.streamdrop_auth'):
             with open('.streamdrop_auth', 'r') as f:
@@ -1773,7 +1788,7 @@ def authenticate():
     """Send a 401 response that enables basic auth"""
     return Response(
         'You need to login to access StreamDrop\n'
-        'Default credentials should be in your setup output or .streamdrop_auth file', 401,
+        'Credentials are in your setup output or .streamdrop_auth file', 401,
         {'WWW-Authenticate': 'Basic realm="StreamDrop"'})
 
 def requires_auth(f):
@@ -2193,6 +2208,7 @@ def api_get_stream_recovery(stream_id):
         return jsonify({"error": f"Error retrieving recovery data: {e}"})
 
 @app.route('/api/streams/<stream_id>/recover', methods=['POST'])
+@requires_auth
 def api_manual_recovery(stream_id):
     """Manually trigger recovery for a specific stream"""
     try:
@@ -2221,6 +2237,16 @@ def api_manual_recovery(stream_id):
             })
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {e}"})
+
+@app.route('/api/platforms', methods=['GET'])
+@requires_auth
+def api_get_platforms():
+    """Get all available streaming platforms"""
+    try:
+        platforms = stream_manager.db.get_platform_configs()
+        return jsonify(platforms)
+    except Exception as e:
+        return jsonify({"error": f"Error retrieving platforms: {e}"})
 
 # Handle graceful shutdown
 def signal_handler(sig, frame):

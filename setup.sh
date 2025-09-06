@@ -15,7 +15,7 @@
 # - Intelligent disk cleanup and space management
 # - Git, Python, Chromium, FFmpeg, and all dependencies
 # - Creates isolated Python virtual environment
-# - Generates secure web interface password (stored in .streamdrop_auth)
+# - Generates secure web interface credentials (random user/pass in .streamdrop_auth)
 # - Configures firewall and systemd service
 # - Sets up auto-start on boot
 
@@ -341,15 +341,18 @@ setup_password() {
         return
     fi
     
-    # Generate a secure random password
+    # Generate a secure random username (8 characters, alphanumeric)
+    WEB_USERNAME=$(openssl rand -base64 12 | tr -d "=+/0-9" | tr '[:upper:]' '[:lower:]' | cut -c1-8)
+    
+    # Generate a secure random password (12 characters)
     WEB_PASSWORD=$(openssl rand -base64 12 | tr -d "=+/" | cut -c1-12)
     
-    # Store password hash (simple for now, can be enhanced)
-    echo "admin:$WEB_PASSWORD" > .streamdrop_auth
+    # Store credentials (simple format for now, can be enhanced)
+    echo "$WEB_USERNAME:$WEB_PASSWORD" > .streamdrop_auth
     chmod 600 .streamdrop_auth
     
-    echo -e "${GREEN}✅ Web interface password generated${NC}"
-    echo -e "${YELLOW}🔑 Username: admin${NC}"
+    echo -e "${GREEN}✅ Web interface credentials generated${NC}"
+    echo -e "${YELLOW}🔑 Username: ${WEB_USERNAME}${NC}"
     echo -e "${YELLOW}🔑 Password: ${WEB_PASSWORD}${NC}"
     echo -e "${BLUE}💡 Stored in .streamdrop_auth (keep this secure!)${NC}"
 }
@@ -458,8 +461,16 @@ echo "=================================================================="
 echo ""
 echo -e "${GREEN}🌐 WEB INTERFACE:${NC}"
 echo -e "   URL:      http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
-echo -e "   Username: ${USERNAME:-admin}"
-echo -e "   Password: ${PASSWORD:-[check .streamdrop_auth file]}"
+if [ -f ".streamdrop_auth" ]; then
+    CURRENT_AUTH=$(cat .streamdrop_auth)
+    CURRENT_USERNAME=$(echo "$CURRENT_AUTH" | cut -d: -f1)
+    CURRENT_PASSWORD=$(echo "$CURRENT_AUTH" | cut -d: -f2)
+    echo -e "   Username: ${CURRENT_USERNAME}"
+    echo -e "   Password: ${CURRENT_PASSWORD}"
+else
+    echo -e "   Username: [check .streamdrop_auth file]"
+    echo -e "   Password: [check .streamdrop_auth file]"
+fi
 echo ""
 echo -e "${BLUE}📊 SYSTEM STATUS:${NC}"
 echo -e "   Service:  🟢 Running and auto-starts on boot"
