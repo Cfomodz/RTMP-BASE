@@ -3,7 +3,10 @@
   <h1>StreamDrop</h1>
   <h3>Stream any website, PyGame, or local HTML file to YouTube 24/7 on a $4/mo Droplet</h2>
 </div>
- 
+
+![GitHub License](https://img.shields.io/github/license/Cfomodz/StreamDrop)
+![GitHub Sponsors](https://img.shields.io/github/sponsors/Cfomodz)
+![Discord](https://img.shields.io/discord/425182625032962049)
 
 **1. Quick Start:**
 ```bash
@@ -25,6 +28,7 @@ http://your-server-ip:5000
 
 <div align="center">
   <h2>That's it. You're live!</h2>
+  <a href="https://www.digitalocean.com/?refcode=30f96ca8496e&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge"><img src="https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%203.svg" alt="DigitalOcean Referral Badge" /></a>
 </div>
 
 ### Stream Management
