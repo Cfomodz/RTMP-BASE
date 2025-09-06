@@ -16,8 +16,8 @@
 # - Git, Python, Chromium, FFmpeg, and all dependencies
 # - Creates isolated Python virtual environment
 # - Generates secure web interface credentials (random user/pass in .streamdrop_auth)
-# - Configures firewall and systemd service
-# - Sets up auto-start on boot
+# - Sets up systemd service and auto-start on boot
+# - Uses port 5000 (accessible by default, firewall not modified)
 
 set -e  # Exit on any error
 
@@ -359,21 +359,10 @@ setup_password() {
 
 setup_password
 
-# Configure firewall for web interface
-echo -e "${BLUE}🔥 Configuring firewall...${NC}"
-if command -v ufw &> /dev/null; then
-    sudo ufw --force enable
-    
-    # Check if rule already exists to avoid duplicates
-    if ! sudo ufw status | grep -q "5000/tcp"; then
-        sudo ufw allow 5000/tcp comment "StreamDrop Web Interface"
-        echo -e "${GREEN}✅ Firewall rule added - Port 5000 opened${NC}"
-    else
-        echo -e "${GREEN}✅ Firewall rule already exists - Port 5000 already opened${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠️  UFW not available, skipping firewall configuration${NC}"
-fi
+# Network configuration note
+echo -e "${BLUE}🌐 Network Configuration${NC}"
+echo -e "${GREEN}✅ StreamDrop will use port 5000 for web interface${NC}"
+echo -e "${YELLOW}🔒 Configure UFW manually if you need firewall protection${NC}"
 
 # Web application setup complete
 echo ""
