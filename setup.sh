@@ -135,6 +135,16 @@ sudo apt install -y \
     build-essential \
     pkg-config
 
+# Install SDL2 development libraries for pygame compilation
+echo -e "${BLUE}🎮 Installing SDL2 libraries for pygame...${NC}"
+sudo apt install -y \
+    libsdl2-dev \
+    libsdl2-image-dev \
+    libsdl2-mixer-dev \
+    libsdl2-ttf-dev \
+    libfreetype6-dev \
+    libportmidi-dev
+
 # Detect headless system and choose optimal setup
 detect_headless() {
     if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && ! pgrep -x "Xorg\|gnome\|kde\|xfce" > /dev/null; then
