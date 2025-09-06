@@ -2007,17 +2007,27 @@ def check_auth(username, password):
 
 def authenticate():
     """Send a 401 response that enables basic auth"""
-    return Response(
-        'You need to login to access StreamDrop\n'
-        'Credentials are in your setup output or .streamdrop_auth file', 401,
-        {'WWW-Authenticate': 'Basic realm="StreamDrop"'})
+    response = Response(
+        '<!DOCTYPE html><html><head><title>Authentication Required</title></head>'
+        '<body><h1>401 - Authentication Required</h1>'
+        '<p>You need to login to access StreamDrop.</p>'
+        '<p>Check your setup output or .streamdrop_auth file for credentials.</p></body></html>',
+        401,
+        {'WWW-Authenticate': 'Basic realm="StreamDrop"',
+         'Content-Type': 'text/html'}
+    )
+    return response
 
 def requires_auth(f):
     """Decorator to require HTTP Basic Auth"""
     @wraps(f)
     def decorated(*args, **kwargs):
         auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
+        if not auth:
+            # No auth provided - send 401 to trigger browser login dialog
+            return authenticate()
+        if not check_auth(auth.username, auth.password):
+            # Invalid auth provided - send 401 again
             return authenticate()
         return f(*args, **kwargs)
     return decorated
