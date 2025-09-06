@@ -420,6 +420,48 @@ fi
 
 echo -e "${GREEN}✅ StreamDrop service is running${NC}"
 
+# Configure firewall safely
+configure_firewall() {
+    echo ""
+    echo -e "${YELLOW}🔥 Configuring firewall (UFW)${NC}"
+    
+    # Check if UFW is already configured for StreamDrop
+    if ufw status | grep -q "5000/tcp.*ALLOW"; then
+        echo -e "${GREEN}✅ Firewall already configured for StreamDrop${NC}"
+        return
+    fi
+    
+    # Install UFW if not present
+    if ! command -v ufw >/dev/null 2>&1; then
+        echo "Installing UFW firewall..."
+        sudo apt install -y ufw
+    fi
+    
+    # Reset UFW to default settings to avoid conflicts
+    echo "Setting UFW defaults..."
+    sudo ufw --force reset >/dev/null 2>&1
+    
+    # CRITICAL: Allow SSH FIRST to prevent lockout
+    echo "🔒 Allowing SSH (port 22) to prevent lockout..."
+    sudo ufw allow 22/tcp >/dev/null
+    
+    # Allow StreamDrop web interface
+    echo "🌐 Allowing StreamDrop web interface (port 5000)..."
+    sudo ufw allow 5000/tcp >/dev/null
+    
+    # Enable UFW
+    echo "Enabling firewall..."
+    sudo ufw --force enable >/dev/null
+    
+    echo -e "${GREEN}✅ Firewall configured:${NC}"
+    echo "   • SSH (22/tcp): ALLOWED"
+    echo "   • StreamDrop (5000/tcp): ALLOWED"
+    echo "   • All other ports: DENIED"
+}
+
+# Configure firewall
+configure_firewall
+
 # Display server information
 get_server_ip() {
     # Try to get public IP
@@ -463,6 +505,7 @@ fi
 echo ""
 echo -e "${BLUE}📊 SYSTEM STATUS:${NC}"
 echo -e "   Service:  🟢 Running and auto-starts on boot"
+echo -e "   Firewall: 🔥 UFW enabled (SSH + port 5000 allowed)"
 echo -e "   Logs:     sudo journalctl -u streamdrop -f"
 echo -e "   Control:  sudo systemctl [start|stop|restart] streamdrop"
 echo ""
