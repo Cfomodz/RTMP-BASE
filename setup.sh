@@ -11,6 +11,7 @@
 #   ./setup.sh
 #
 # This script installs everything needed from scratch:
+# - Automatically adds swap for low-memory VPS (<2GB RAM)
 # - Git, Python, Chromium, FFmpeg, and all dependencies
 # - Creates isolated Python virtual environment
 # - Configures firewall and systemd service
@@ -102,10 +103,46 @@ check_internet() {
     echo -e "${GREEN}✅ Internet connection confirmed${NC}"
 }
 
+# Function to add swap for low-memory systems
+setup_swap() {
+    # Get total memory in MB
+    TOTAL_MEM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+    
+    # Check if swap already exists
+    if swapon --show | grep -q "/swapfile"; then
+        echo -e "${GREEN}✅ Swap file already exists${NC}"
+        return
+    fi
+    
+    # Add swap for systems with less than 2GB RAM
+    if [ "$TOTAL_MEM" -lt 2048 ]; then
+        SWAP_SIZE="2G"
+        echo -e "${YELLOW}💾 Low memory system detected (${TOTAL_MEM}MB)${NC}"
+        echo -e "${BLUE}🔄 Creating ${SWAP_SIZE} swap file to prevent OOM during setup...${NC}"
+        
+        # Create swap file
+        sudo fallocate -l "$SWAP_SIZE" /swapfile
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        
+        # Make permanent (add to fstab if not already there)
+        if ! grep -q "/swapfile" /etc/fstab; then
+            echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+        fi
+        
+        echo -e "${GREEN}✅ ${SWAP_SIZE} swap file created and activated${NC}"
+        echo -e "${BLUE}💡 Free memory now: $(free -h | awk 'NR==2{print $7}')${NC}"
+    else
+        echo -e "${GREEN}✅ Sufficient memory detected (${TOTAL_MEM}MB)${NC}"
+    fi
+}
+
 # Run initial checks
 handle_root_user  # Will exit if root, switching to streamdrop user
 check_ubuntu
 check_internet
+setup_swap  # Add swap for low-memory systems before heavy operations
 
 # Update package lists
 echo -e "${BLUE}📦 Updating package lists...${NC}"
@@ -352,6 +389,9 @@ get_server_ip
 
 echo ""
 echo -e "${BLUE}📋 What's been installed & configured:${NC}"
+if [ "$TOTAL_MEM" -lt 2048 ] && swapon --show | grep -q "/swapfile"; then
+    echo "• ✅ Swap file created for low-memory system optimization"
+fi
 if [ "$HEADLESS_MODE" = true ]; then
     echo "• ✅ Optimized headless dependencies (60% less packages)"
     echo "• ✅ No X11/Xvfb bloat - maximum efficiency"
