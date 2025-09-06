@@ -12,49 +12,34 @@ cd StreamDrop
 chmod +x setup.sh && ./setup.sh
 ```
 
-**2. Get your YouTube Stream Key from [YouTube Studio](https://studio.youtube.com)**
-
-**3. Start Streaming:**
+**2. Open the web interface:**
 ```bash
-YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="https://yoursite.com" python3 smart_streamer.py
+http://your-server-ip:5000
 ```
+
+**3. Add your first stream:**
+- Get your YouTube Stream Key from [YouTube Studio](https://studio.youtube.com)
+- Click "Add Stream" in the web interface
+- Enter your stream key and content URL
+- Click "Start Stream"
+
 <div align="center">
   <h2>That's it. You're live!</h2>
 </div>
 
-### Web Interface
+### Stream Management
 
-Open `http://your-server-ip:5000` to control streams.
+**All streams are managed via the web interface:**
+- Each stream has its own YouTube key and content path
+- Streams run independently and restart if they fail
 
-### Auto-Start Service
-
+**Manual stream creation (advanced):**
 ```bash
-sudo systemctl enable streamdrop
-sudo systemctl start streamdrop
-```
-
-
-### Environment Variables
-
-```bash
-YOUTUBE_STREAM_KEY="your_key"
-CONTENT_PATH="https://example.com"
-```
-
-### Examples
-
-**Stream a website:**
-```bash
+# Create individual streams via command line if needed:
 YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="https://clock.zone" python3 smart_streamer.py
-```
-
-**Stream local HTML:**
-```bash
+# **Stream local HTML:**
 YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="file:///path/to/file.html" python3 smart_streamer.py
-```
-
-**Stream pygame game:**
-```bash
+# **Stream pygame game:**
 YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="fun_game.py" python3 smart_streamer.py
 ```
 

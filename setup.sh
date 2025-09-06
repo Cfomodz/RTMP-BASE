@@ -8,7 +8,7 @@
 #   3. chmod +x setup.sh && ./setup.sh
 #
 # 🤖 FULLY AUTOMATED DEPLOYMENT:
-#   YOUTUBE_STREAM_KEY="your_key" DEFAULT_CONTENT_PATH="https://your-site.com" ./setup.sh
+#   ./setup.sh
 #
 # This script installs everything needed from scratch:
 # - Git, Python, Chromium, FFmpeg, and all dependencies
@@ -31,12 +31,50 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
 
-# Function to check if running as root
-check_not_root() {
+# Function to handle root user - create streamdrop user and switch
+handle_root_user() {
     if [[ $EUID -eq 0 ]]; then
-        echo -e "${RED}❌ This script should not be run as root!${NC}"
-        echo -e "${YELLOW}💡 Run as a regular user with sudo privileges instead${NC}"
-        exit 1
+        echo -e "${YELLOW}🔑 Running as root - creating streamdrop user for security${NC}"
+        
+        # Check if streamdrop user already exists
+        if id "streamdrop" &>/dev/null; then
+            echo -e "${GREEN}✅ streamdrop user already exists${NC}"
+            # Ensure user is in sudo group
+            usermod -aG sudo streamdrop
+        else
+            echo -e "${BLUE}👤 Creating streamdrop user...${NC}"
+            # Create user with home directory and add to sudo group
+            useradd -m -s /bin/bash -G sudo streamdrop
+            echo -e "${GREEN}✅ streamdrop user created${NC}"
+        fi
+        
+        # Ensure passwordless sudo for setup process (whether new or existing user)
+        echo "streamdrop ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/streamdrop
+        echo -e "${GREEN}✅ streamdrop user configured with sudo access${NC}"
+        
+        # Set up streamdrop directory
+        STREAMDROP_HOME="/home/streamdrop/StreamDrop"
+        echo -e "${BLUE}📁 Setting up StreamDrop directory...${NC}"
+        
+        # Create StreamDrop directory if it doesn't exist
+        mkdir -p "$STREAMDROP_HOME"
+        
+        # Copy current directory contents to streamdrop user
+        cp -r . "$STREAMDROP_HOME/"
+        chown -R streamdrop:streamdrop "$STREAMDROP_HOME"
+        
+        # No environment variables needed - pure web app setup
+        
+        echo -e "${GREEN}🔄 Switching to streamdrop user and continuing setup...${NC}"
+        echo ""
+        
+        # Switch to streamdrop user and run setup in their directory
+        su - streamdrop -c "cd '$STREAMDROP_HOME' && bash setup.sh"
+        
+        echo ""
+        echo -e "${GREEN}🎉 Setup completed for streamdrop user!${NC}"
+        echo -e "${BLUE}💡 StreamDrop is installed in: $STREAMDROP_HOME${NC}"
+        exit 0
     fi
 }
 
@@ -58,7 +96,7 @@ check_internet() {
 }
 
 # Run initial checks
-check_not_root
+handle_root_user  # Will exit if root, switching to streamdrop user
 check_ubuntu
 check_internet
 
@@ -184,55 +222,15 @@ else
     echo -e "${YELLOW}⚠️  UFW not available, skipping firewall configuration${NC}"
 fi
 
-# Interactive or environment-based configuration
+# Web application setup complete
 echo ""
-echo -e "${YELLOW}⚙️  Configuration Setup${NC}"
+echo -e "${GREEN}✅ StreamDrop Web Application Setup Complete${NC}"
 echo "=========================================="
-
-# Check for environment variables first (for automation)
-if [[ -n "$YOUTUBE_STREAM_KEY" ]]; then
-    STREAM_KEY="$YOUTUBE_STREAM_KEY"
-    echo -e "${GREEN}✅ Using YouTube Stream Key from environment variable${NC}"
-else
-    echo "Now let's configure your streaming settings..."
-    echo ""
-    
-    # Get YouTube Stream Key interactively
-    while true; do
-        echo -e "${BLUE}Enter your YouTube Stream Key:${NC}"
-        echo "(You can find this in YouTube Studio > Go Live > Stream Key)"
-        echo -e "${YELLOW}💡 Tip: You can also set YOUTUBE_STREAM_KEY environment variable to skip this${NC}"
-        read -r STREAM_KEY
-        
-        if [[ -z "$STREAM_KEY" ]]; then
-            echo -e "${RED}❌ Stream key cannot be empty. Please try again.${NC}"
-        else
-            break
-        fi
-    done
-fi
-
-# Get default content path
-if [[ -n "$DEFAULT_CONTENT_PATH" ]]; then
-    CONTENT_PATH="$DEFAULT_CONTENT_PATH"
-    echo -e "${GREEN}✅ Using content path from environment variable: $CONTENT_PATH${NC}"
-else
-    echo ""
-    echo -e "${BLUE}Enter default content URL/path (optional, press Enter for default):${NC}"
-    echo "Examples: https://example.com, https://clock.zone, file:///path/to/file.html"
-    read -r CONTENT_PATH
-    
-    if [[ -z "$CONTENT_PATH" ]]; then
-        CONTENT_PATH="https://example.com"
-    fi
-fi
-
-# Create .env file
-echo -e "${BLUE}📝 Creating configuration file (.env)...${NC}"
-cat > .env << EOF
-YOUTUBE_STREAM_KEY=$STREAM_KEY
-CONTENT_PATH=$CONTENT_PATH
-EOF
+echo ""
+echo -e "${BLUE}💡 Stream Configuration:${NC}"
+echo "• Open the web interface to add your streams with their own keys and content"
+echo "• Each stream runs independently and can be started/stopped separately"
+echo ""
 
 # Set up systemd service for auto-startup
 echo ""
@@ -255,7 +253,7 @@ Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$CURRENT_DIR
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=$CURRENT_DIR/venv/bin/python $CURRENT_DIR/main.py
+ExecStart=$CURRENT_DIR/venv/bin/python $CURRENT_DIR/stream_manager.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -268,6 +266,9 @@ EOF
 # Enable and start the service
 sudo systemctl daemon-reload
 sudo systemctl enable streamdrop.service
+echo -e "${BLUE}🚀 Starting StreamDrop service...${NC}"
+sudo systemctl start streamdrop.service
+echo -e "${GREEN}✅ StreamDrop service started and running${NC}"
 
 # Display server information
 get_server_ip() {
@@ -299,14 +300,14 @@ fi
 echo "• ✅ Python virtual environment created (venv/)"
 echo "• ✅ Python packages installed in isolated environment"
 echo "• ✅ Firewall configured (port 5000 opened)"
-echo "• ✅ Configuration saved to .env file"
-echo "• ✅ Auto-startup systemd service created and enabled"
+echo "• ✅ StreamDrop service created, enabled, and started"
+echo "• ✅ Web interface ready for stream configuration"
 echo ""
-echo -e "${BLUE}🚀 How to start streaming:${NC}"
-echo "1. 🟢 Start now: sudo systemctl start streamdrop"
-echo "2. 📊 Check status: sudo systemctl status streamdrop"
+echo -e "${BLUE}🚀 Your StreamDrop server is ready:${NC}"
+echo "1. 🌐 Web interface: http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
+echo "2. 📊 Check status: sudo systemctl status streamdrop"  
 echo "3. 📝 View logs: sudo journalctl -u streamdrop -f"
-echo "4. 🌐 Web interface: http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
+echo "4. 🟢 Service is running and will auto-start on boot"
 echo ""
 echo -e "${YELLOW}🔧 Service management:${NC}"
 echo "• Start:   sudo systemctl start streamdrop"
@@ -318,15 +319,13 @@ echo "• Disable auto-start: sudo systemctl disable streamdrop"
 echo ""
 echo -e "${YELLOW}💡 For manual testing:${NC}"
 echo "• Activate venv: source venv/bin/activate"
-if [ "$HEADLESS_MODE" = true ]; then
-    echo "• Run manually: YOUTUBE_STREAM_KEY=key CONTENT_PATH=https://clock.zone ./venv/bin/python smart_streamer.py"
-else
-    echo "• Run manually: ./venv/bin/python smart_streamer.py (or main.py for traditional mode)"
-fi
+echo "• Run stream manager: ./venv/bin/python stream_manager.py"
+echo "• Create individual streams via web interface or smart_streamer.py"
 echo ""
-echo -e "${PURPLE}🔒 Environment variables for automation:${NC}"
-echo "• YOUTUBE_STREAM_KEY=your_key ./setup.sh"
-echo "• DEFAULT_CONTENT_PATH=https://your-site.com ./setup.sh"
+echo -e "${PURPLE}🎯 Stream Management:${NC}"
+echo "• Create streams via web interface at http://your-server:5000"
+echo "• Each stream has its own YouTube key and content path"
+echo "• Streams run independently and restart automatically if they fail"
 echo ""
 echo -e "${GREEN}🎊 Your 24/7 streaming server is ready to go!${NC}"
 echo -e "${GREEN}   The service will automatically start on boot.${NC}"

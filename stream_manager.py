@@ -17,10 +17,6 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from threading import Thread, Lock
 from flask import Flask, render_template, request, jsonify
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, 

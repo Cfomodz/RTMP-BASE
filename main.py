@@ -12,10 +12,6 @@ import signal
 import subprocess
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, 
@@ -25,17 +21,20 @@ logger = logging.getLogger('html-streamer')
 app = Flask(__name__)
 
 class HTMLStreamer:
-    def __init__(self):
+    def __init__(self, stream_key='', content_path=''):
         self.process = None
         self.display_process = None
         self.status = "stopped"
-        self.stream_key = os.environ.get('YOUTUBE_STREAM_KEY', '')
-        self.content_path = os.environ.get('CONTENT_PATH', 'https://example.com')
+        self.stream_key = stream_key
+        self.content_path = content_path
         
     def start_streaming(self):
         """Start streaming HTML content"""
         if not self.stream_key:
             return False, "YouTube stream key not configured"
+            
+        if not self.content_path:
+            return False, "Content path not configured"
             
         if self.status == "running":
             return False, "Stream is already running"
