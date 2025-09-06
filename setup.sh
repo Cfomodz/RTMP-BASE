@@ -255,9 +255,10 @@ source venv/bin/activate
 echo -e "${BLUE}⬆️ Upgrading pip...${NC}"
 pip install --upgrade pip
 
-# Install Python dependencies in virtual environment
+# Install Python dependencies in virtual environment (optimized for low-memory VPS)
 echo -e "${BLUE}📦 Installing Python dependencies in virtual environment...${NC}"
-pip install -r requirements.txt
+echo -e "${YELLOW}💡 Using pre-built wheels to reduce memory usage${NC}"
+pip install --prefer-binary --only-binary=Pillow,numpy,opencv-python-headless -r requirements.txt
 
 # Configure firewall for web interface
 echo -e "${BLUE}🔥 Configuring firewall...${NC}"
