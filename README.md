@@ -31,7 +31,11 @@ http://your-server-ip:5000
   <h2>That's it. You're live!</h2>
   <a href="https://www.digitalocean.com/?refcode=30f96ca8496e&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge"><img src="https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%203.svg" alt="DigitalOcean Referral Badge" /></a>
   <p>$200 Credit Referral Link | Pays for our droplets :)</p>
+  <h4>Demo:</h4>
+  <img width="700" alt="image" src="https://github.com/user-attachments/assets/3741b534-3075-4824-8fbb-68948036d2c4" />
 </div>
+
+---
 
 ### Stream Management
 
