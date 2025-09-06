@@ -530,24 +530,35 @@
                 </div>
                 
                 <div class="form-group">
+                    <label class="form-label">Orientation</label>
+                    <select class="form-input" name="orientation" id="orientationSelect" required>
+                        <option value="auto">Auto (recommended for platform)</option>
+                        <option value="horizontal">Horizontal (16:9 landscape)</option>
+                        <option value="vertical">Vertical (9:16 portrait)</option>
+                    </select>
+                    <div class="form-help" id="orientationHelp">Choose orientation or let system recommend based on platform</div>
+                </div>
+                
+                <div class="form-group">
                     <label class="form-label">Quality Preset</label>
-                    <select class="form-input" name="quality" required>
-                        <option value="low">Low (854x480, 1000k, 24fps)</option>
-                        <option value="medium" selected>Medium (1280x720, 2500k, 30fps)</option>
-                        <option value="high">High (1920x1080, 4000k, 30fps)</option>
-                        <option value="ultra">Ultra (1920x1080, 6000k, 60fps)</option>
+                    <select class="form-input" name="quality" id="qualitySelect" required>
+                        <option value="low">Low (1000k, 24fps)</option>
+                        <option value="medium" selected>Medium (2500k, 30fps)</option>
+                        <option value="high">High (4000k, 30fps)</option>
+                        <option value="ultra">Ultra (6000k, 60fps)</option>
                         <option value="custom">Custom Settings</option>
                     </select>
+                    <div class="form-help" id="qualityHelp">
+                        <span id="qualityDetails">Medium: 1280x720 for horizontal, 720x1280 for vertical</span>
+                    </div>
                 </div>
                 
                 <div id="customQualityGroup" style="display: none;">
                     <div class="quality-controls">
                         <div class="form-group">
                             <label class="form-label">Resolution</label>
-                            <select class="form-input" name="custom_resolution">
-                                <option value="854x480">854x480 (480p)</option>
-                                <option value="1280x720">1280x720 (720p)</option>
-                                <option value="1920x1080">1920x1080 (1080p)</option>
+                            <select class="form-input" name="custom_resolution" id="customResolutionSelect">
+                                <!-- Options will be populated dynamically based on platform -->
                             </select>
                         </div>
                         <div class="form-group">
@@ -692,6 +703,114 @@
             }
         }
         
+        // Update orientation recommendation based on platform
+        function updateOrientationRecommendation(platform) {
+            const orientationSelect = document.getElementById('orientationSelect');
+            const orientationHelp = document.getElementById('orientationHelp');
+            
+            if (!orientationSelect || !orientationHelp) return;
+            
+            const verticalPlatforms = ['tiktok', 'instagram'];
+            
+            if (verticalPlatforms.includes(platform)) {
+                orientationHelp.textContent = `${platform.charAt(0).toUpperCase() + platform.slice(1)} works best with vertical orientation`;
+                // Auto-select vertical for these platforms if on auto
+                if (orientationSelect.value === 'auto') {
+                    updateQualityDisplay('vertical');
+                }
+            } else {
+                orientationHelp.textContent = `${platform.charAt(0).toUpperCase() + platform.slice(1)} works best with horizontal orientation`;
+                // Auto-select horizontal for other platforms if on auto
+                if (orientationSelect.value === 'auto') {
+                    updateQualityDisplay('horizontal');
+                }
+            }
+        }
+        
+        // Update quality display with actual resolutions
+        function updateQualityDisplay(forceOrientation = null) {
+            const orientationSelect = document.getElementById('orientationSelect');
+            const qualitySelect = document.getElementById('qualitySelect');
+            const qualityDetails = document.getElementById('qualityDetails');
+            const platformSelect = document.querySelector('select[name="platform"]');
+            
+            if (!orientationSelect || !qualitySelect || !qualityDetails || !platformSelect) return;
+            
+            let orientation = forceOrientation || orientationSelect.value;
+            
+            // Determine effective orientation
+            if (orientation === 'auto') {
+                const verticalPlatforms = ['tiktok', 'instagram'];
+                orientation = verticalPlatforms.includes(platformSelect.value) ? 'vertical' : 'horizontal';
+            }
+            
+            const quality = qualitySelect.value;
+            
+            // Quality mappings
+            const qualityInfo = {
+                horizontal: {
+                    low: '854×480',
+                    medium: '1280×720', 
+                    high: '1920×1080',
+                    ultra: '1920×1080'
+                },
+                vertical: {
+                    low: '480×854',
+                    medium: '720×1280',
+                    high: '1080×1920', 
+                    ultra: '1080×1920'
+                }
+            };
+            
+            const bitrateInfo = {
+                low: '1000k, 24fps',
+                medium: '2500k, 30fps',
+                high: '4000k, 30fps', 
+                ultra: '6000k, 60fps'
+            };
+            
+            if (quality === 'custom') {
+                qualityDetails.textContent = 'Configure custom settings below';
+            } else {
+                const resolution = qualityInfo[orientation][quality];
+                const bitrate = bitrateInfo[quality];
+                qualityDetails.textContent = `${quality.charAt(0).toUpperCase() + quality.slice(1)}: ${resolution}, ${bitrate}`;
+            }
+        }
+        
+        // Update custom resolution options based on orientation
+        function updateCustomResolutionOptions() {
+            const orientationSelect = document.getElementById('orientationSelect');
+            const customResolutionSelect = document.getElementById('customResolutionSelect');
+            const platformSelect = document.querySelector('select[name="platform"]');
+            
+            if (!orientationSelect || !customResolutionSelect || !platformSelect) return;
+            
+            let orientation = orientationSelect.value;
+            
+            // Determine effective orientation
+            if (orientation === 'auto') {
+                const verticalPlatforms = ['tiktok', 'instagram'];
+                orientation = verticalPlatforms.includes(platformSelect.value) ? 'vertical' : 'horizontal';
+            }
+            
+            customResolutionSelect.innerHTML = '';
+            
+            if (orientation === 'vertical') {
+                customResolutionSelect.innerHTML = `
+                    <option value="480x854">480×854 (480p vertical)</option>
+                    <option value="720x1280">720×1280 (720p vertical)</option>
+                    <option value="1080x1920">1080×1920 (1080p vertical)</option>
+                `;
+            } else {
+                customResolutionSelect.innerHTML = `
+                    <option value="854x480">854×480 (480p)</option>
+                    <option value="1280x720">1280×720 (720p)</option>
+                    <option value="1920x1080">1920×1080 (1080p)</option>
+                `;
+            }
+        }
+        
         // Setup dynamic form handlers
         function setupFormHandlers() {
             // Load platforms dynamically
@@ -708,6 +827,11 @@
                     } else {
                         customRtmpGroup.style.display = 'none';
                     }
+                    
+                    // Update orientation recommendation
+                    updateOrientationRecommendation(this.value);
+                    // Update quality descriptions
+                    updateQualityDisplay();
                 });
             }
             
@@ -719,11 +843,29 @@
                 qualitySelect.addEventListener('change', function() {
                     if (this.value === 'custom') {
                         customQualityGroup.style.display = 'block';
+                        updateCustomResolutionOptions();
                     } else {
                         customQualityGroup.style.display = 'none';
                     }
+                    updateQualityDisplay();
                 });
             }
+            
+            // Orientation handler
+            const orientationSelect = document.getElementById('orientationSelect');
+            if (orientationSelect) {
+                orientationSelect.addEventListener('change', function() {
+                    updateQualityDisplay();
+                    updateCustomResolutionOptions();
+                });
+            }
+            
+            // Initialize display
+            setTimeout(() => {
+                const currentPlatform = document.querySelector('select[name="platform"]')?.value || 'youtube';
+                updateOrientationRecommendation(currentPlatform);
+                updateQualityDisplay();
+            }, 100);
         }
 
         // Load streams from server

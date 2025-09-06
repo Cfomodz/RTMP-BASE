@@ -851,13 +851,24 @@ class StreamInstance:
         self.recovery_in_progress = False
         self.active_recovery_id = None
         
-        # Quality settings
+        # Quality settings (horizontal presets)
         self.quality_presets = {
             'low': {'resolution': '854x480', 'bitrate': '1000k', 'framerate': '24'},
             'medium': {'resolution': '1280x720', 'bitrate': '2500k', 'framerate': '30'},
             'high': {'resolution': '1920x1080', 'bitrate': '4000k', 'framerate': '30'},
             'ultra': {'resolution': '1920x1080', 'bitrate': '6000k', 'framerate': '60'}
         }
+        
+        # Vertical quality presets for mobile platforms
+        self.vertical_quality_presets = {
+            'low': {'resolution': '480x854', 'bitrate': '1000k', 'framerate': '24'},
+            'medium': {'resolution': '720x1280', 'bitrate': '2500k', 'framerate': '30'},
+            'high': {'resolution': '1080x1920', 'bitrate': '4000k', 'framerate': '30'},
+            'ultra': {'resolution': '1080x1920', 'bitrate': '6000k', 'framerate': '60'}
+        }
+        
+        # Platforms that prefer vertical orientation
+        self.vertical_platforms = {'tiktok', 'instagram'}
         
         # Load platform configurations from database
         self.platform_configs = {}
@@ -882,7 +893,22 @@ class StreamInstance:
                     'framerate': custom.get('framerate', '30')
                 }
             else:
-                quality = self.quality_presets.get(self.config.get('quality', 'medium'))
+                # Choose quality preset based on orientation preference
+                orientation = self.config.get('orientation', 'auto')
+                platform = self.config.get('platform', '')
+                
+                # Determine effective orientation
+                if orientation == 'auto':
+                    use_vertical = platform in self.vertical_platforms
+                elif orientation == 'vertical':
+                    use_vertical = True
+                else:  # horizontal
+                    use_vertical = False
+                
+                if use_vertical:
+                    quality = self.vertical_quality_presets.get(self.config.get('quality', 'medium'))
+                else:
+                    quality = self.quality_presets.get(self.config.get('quality', 'medium'))
             
             # Start virtual display
             display_port = f":9{self.config['id'][-1]}"  # Use last char of ID for display port
