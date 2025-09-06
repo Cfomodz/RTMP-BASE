@@ -2,11 +2,12 @@
   <img src="logo.png" width="120" height="120" alt="StreamDrop Logo"/>
   <h1>StreamDrop</h1>
   <h3>Stream any website, PyGame, or local HTML file to YouTube 24/7 on a $4/mo Droplet</h2>
-</div>
+  
+  ![GitHub License](https://img.shields.io/github/license/Cfomodz/StreamDrop)
+  ![GitHub Sponsors](https://img.shields.io/github/sponsors/Cfomodz)
+  ![Discord](https://img.shields.io/discord/425182625032962049)
 
-![GitHub License](https://img.shields.io/github/license/Cfomodz/StreamDrop)
-![GitHub Sponsors](https://img.shields.io/github/sponsors/Cfomodz)
-![Discord](https://img.shields.io/discord/425182625032962049)
+</div>
 
 **1. Quick Start:**
 ```bash
