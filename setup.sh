@@ -328,8 +328,8 @@ pip install --upgrade pip
 
 # Install Python dependencies in virtual environment (optimized for low-memory VPS)
 echo -e "${BLUE}📦 Installing Python dependencies in virtual environment...${NC}"
-echo -e "${YELLOW}💡 Using pre-built wheels to reduce memory usage${NC}"
-pip install --prefer-binary --only-binary=Pillow,numpy,opencv-python-headless -r requirements.txt
+echo -e "${YELLOW}💡 Using pre-built wheels to reduce memory usage and avoid compilation${NC}"
+pip install --prefer-binary --only-binary=:all: --no-compile -r requirements.txt
 
 # Configure firewall for web interface
 echo -e "${BLUE}🔥 Configuring firewall...${NC}"
