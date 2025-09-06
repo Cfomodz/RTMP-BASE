@@ -11,7 +11,8 @@
 #   ./setup.sh
 #
 # This script installs everything needed from scratch:
-# - Automatically adds swap for low-memory VPS (<2GB RAM)
+# - Automatically adds swap for low-memory VPS (<2GB RAM, max 30% disk space)
+# - Intelligent disk cleanup and space management
 # - Git, Python, Chromium, FFmpeg, and all dependencies
 # - Creates isolated Python virtual environment
 # - Configures firewall and systemd service
@@ -116,9 +117,33 @@ setup_swap() {
     
     # Add swap for systems with less than 2GB RAM
     if [ "$TOTAL_MEM" -lt 2048 ]; then
-        SWAP_SIZE="2G"
-        echo -e "${YELLOW}💾 Low memory system detected (${TOTAL_MEM}MB)${NC}"
-        echo -e "${BLUE}🔄 Creating ${SWAP_SIZE} swap file to prevent OOM during setup...${NC}"
+        # Get available disk space in MB
+        AVAILABLE_SPACE=$(df / | awk 'NR==2{printf "%.0f", $4/1024}')
+        
+        # Calculate 30% of available space in MB
+        MAX_SWAP_MB=$((AVAILABLE_SPACE * 30 / 100))
+        
+        # Default to 2GB (2048MB) but respect disk space limits
+        DESIRED_SWAP_MB=2048
+        if [ "$MAX_SWAP_MB" -lt "$DESIRED_SWAP_MB" ]; then
+            SWAP_SIZE_MB=$MAX_SWAP_MB
+            SWAP_SIZE="${SWAP_SIZE_MB}M"
+            echo -e "${YELLOW}💾 Low memory system detected (${TOTAL_MEM}MB)${NC}"
+            echo -e "${YELLOW}⚠️  Limited disk space: ${AVAILABLE_SPACE}MB available${NC}"
+            echo -e "${BLUE}🔄 Creating ${SWAP_SIZE} swap file (30% of available space)...${NC}"
+        else
+            SWAP_SIZE_MB=$DESIRED_SWAP_MB
+            SWAP_SIZE="2G"
+            echo -e "${YELLOW}💾 Low memory system detected (${TOTAL_MEM}MB)${NC}"
+            echo -e "${BLUE}🔄 Creating ${SWAP_SIZE} swap file to prevent OOM during setup...${NC}"
+        fi
+        
+        # Ensure we have at least 500MB for swap to be useful
+        if [ "$SWAP_SIZE_MB" -lt 500 ]; then
+            echo -e "${RED}❌ Insufficient disk space for meaningful swap (${AVAILABLE_SPACE}MB available)${NC}"
+            echo -e "${YELLOW}⚠️  Proceeding without swap - consider upgrading your VPS${NC}"
+            return
+        fi
         
         # Create swap file
         sudo fallocate -l "$SWAP_SIZE" /swapfile
@@ -133,6 +158,7 @@ setup_swap() {
         
         echo -e "${GREEN}✅ ${SWAP_SIZE} swap file created and activated${NC}"
         echo -e "${BLUE}💡 Free memory now: $(free -h | awk 'NR==2{print $7}')${NC}"
+        echo -e "${BLUE}💽 Remaining disk space: $((AVAILABLE_SPACE - SWAP_SIZE_MB))MB${NC}"
     else
         echo -e "${GREEN}✅ Sufficient memory detected (${TOTAL_MEM}MB)${NC}"
     fi
@@ -143,6 +169,14 @@ handle_root_user  # Will exit if root, switching to streamdrop user
 check_ubuntu
 check_internet
 setup_swap  # Add swap for low-memory systems before heavy operations
+
+# Clean up disk space before heavy operations
+echo -e "${BLUE}🧹 Cleaning up disk space...${NC}"
+sudo apt clean
+sudo apt autoremove -y
+sudo rm -rf /tmp/* 2>/dev/null || true
+sudo journalctl --rotate
+sudo journalctl --vacuum-time=1d
 
 # Update package lists
 echo -e "${BLUE}📦 Updating package lists...${NC}"
@@ -390,7 +424,8 @@ get_server_ip
 echo ""
 echo -e "${BLUE}📋 What's been installed & configured:${NC}"
 if [ "$TOTAL_MEM" -lt 2048 ] && swapon --show | grep -q "/swapfile"; then
-    echo "• ✅ Swap file created for low-memory system optimization"
+    SWAP_SIZE_DISPLAY=$(swapon --show --noheadings | awk '{print $3}' | head -n1)
+    echo "• ✅ Swap file created: ${SWAP_SIZE_DISPLAY} (respects 30% disk space limit)"
 fi
 if [ "$HEADLESS_MODE" = true ]; then
     echo "• ✅ Optimized headless dependencies (60% less packages)"
