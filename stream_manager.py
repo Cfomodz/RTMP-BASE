@@ -16,7 +16,8 @@ import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
 from threading import Thread, Lock
-from flask import Flask, render_template, request, jsonify
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, Response
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, 
@@ -1756,23 +1757,56 @@ class StreamManager:
 app = Flask(__name__)
 stream_manager = StreamManager()
 
+def check_auth(username, password):
+    """Check if username and password match stored credentials"""
+    try:
+        if os.path.exists('.streamdrop_auth'):
+            with open('.streamdrop_auth', 'r') as f:
+                stored_auth = f.read().strip()
+                stored_username, stored_password = stored_auth.split(':', 1)
+                return username == stored_username and password == stored_password
+    except Exception as e:
+        logger.error(f"Error checking authentication: {e}")
+    return False
+
+def authenticate():
+    """Send a 401 response that enables basic auth"""
+    return Response(
+        'You need to login to access StreamDrop\n'
+        'Default credentials should be in your setup output or .streamdrop_auth file', 401,
+        {'WWW-Authenticate': 'Basic realm="StreamDrop"'})
+
+def requires_auth(f):
+    """Decorator to require HTTP Basic Auth"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route('/')
+@requires_auth
 def dashboard():
     """Main dashboard"""
     return render_template('dashboard.html')
 
 @app.route('/analytics')
+@requires_auth
 def analytics():
     """Analytics dashboard"""
     return render_template('analytics.html')
 
 @app.route('/api/streams', methods=['GET'])
+@requires_auth
 def api_get_streams():
     """Get all streams"""
     streams = stream_manager.get_all_streams()
     return jsonify(streams)
 
 @app.route('/api/streams', methods=['POST'])
+@requires_auth
 def api_create_stream():
     """Create new stream"""
     try:
@@ -1932,6 +1966,7 @@ def api_delete_platform(platform_name):
 
 # Multi-Stream Management APIs
 @app.route('/api/streams/<stream_id>/multi-targets', methods=['POST'])
+@requires_auth
 def api_add_multi_stream_target(stream_id):
     """Add multi-stream target to a stream"""
     try:
@@ -1962,6 +1997,7 @@ def api_add_multi_stream_target(stream_id):
         return jsonify({"success": False, "message": f"Error: {e}"})
 
 @app.route('/api/streams/<stream_id>/multi-targets', methods=['GET'])
+@requires_auth
 def api_get_multi_stream_targets(stream_id):
     """Get multi-stream targets for a stream"""
     try:
@@ -1981,6 +2017,7 @@ def api_get_multi_stream_targets(stream_id):
         return jsonify({"success": False, "message": f"Error: {e}"})
 
 @app.route('/api/streams/<stream_id>/multi-targets/<int:target_index>', methods=['DELETE'])
+@requires_auth
 def api_remove_multi_stream_target(stream_id, target_index):
     """Remove multi-stream target from a stream"""
     try:
@@ -2011,6 +2048,7 @@ def api_remove_multi_stream_target(stream_id, target_index):
 
 # Audio Configuration APIs
 @app.route('/api/streams/<stream_id>/audio', methods=['PUT'])
+@requires_auth
 def api_update_stream_audio(stream_id):
     """Update stream audio configuration"""
     try:
@@ -2026,6 +2064,7 @@ def api_update_stream_audio(stream_id):
 
 # Project stream management
 @app.route('/api/projects/<project_id>/streams', methods=['GET'])
+@requires_auth
 def api_get_project_streams(project_id):
     """Get all streams for a project"""
     try:
@@ -2035,18 +2074,21 @@ def api_get_project_streams(project_id):
         return jsonify({"success": False, "message": f"Error: {e}"})
 
 @app.route('/api/streams/<stream_id>/start', methods=['POST'])
+@requires_auth
 def api_start_stream(stream_id):
     """Start specific stream"""
     success, message = stream_manager.start_stream(stream_id)
     return jsonify({"success": success, "message": message})
 
 @app.route('/api/streams/<stream_id>/stop', methods=['POST'])
+@requires_auth
 def api_stop_stream(stream_id):
     """Stop specific stream"""
     success, message = stream_manager.stop_stream(stream_id)
     return jsonify({"success": success, "message": message})
 
 @app.route('/api/streams/<stream_id>', methods=['PUT'])
+@requires_auth
 def api_update_stream(stream_id):
     """Update specific stream"""
     try:
@@ -2057,12 +2099,14 @@ def api_update_stream(stream_id):
         return jsonify({"success": False, "message": f"Error: {e}"})
 
 @app.route('/api/streams/<stream_id>', methods=['DELETE'])
+@requires_auth
 def api_delete_stream(stream_id):
     """Delete specific stream"""
     success, message = stream_manager.delete_stream(stream_id)
     return jsonify({"success": success, "message": message})
 
 @app.route('/api/metrics/<stream_id>', methods=['GET'])
+@requires_auth
 def api_get_stream_metrics(stream_id):
     """Get metrics for specific stream"""
     try:
@@ -2073,6 +2117,7 @@ def api_get_stream_metrics(stream_id):
         return jsonify({"error": f"Error retrieving metrics: {e}"})
 
 @app.route('/api/alerts', methods=['GET'])
+@requires_auth
 def api_get_alerts():
     """Get all unacknowledged alerts"""
     try:
@@ -2083,6 +2128,7 @@ def api_get_alerts():
         return jsonify({"error": f"Error retrieving alerts: {e}"})
 
 @app.route('/api/alerts/<int:alert_id>/acknowledge', methods=['POST'])
+@requires_auth
 def api_acknowledge_alert(alert_id):
     """Acknowledge an alert"""
     try:
@@ -2092,6 +2138,7 @@ def api_acknowledge_alert(alert_id):
         return jsonify({"success": False, "message": f"Error: {e}"})
 
 @app.route('/api/analytics/overview', methods=['GET'])
+@requires_auth
 def api_analytics_overview():
     """Get analytics overview for all streams"""
     try:

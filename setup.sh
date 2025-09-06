@@ -15,6 +15,7 @@
 # - Intelligent disk cleanup and space management
 # - Git, Python, Chromium, FFmpeg, and all dependencies
 # - Creates isolated Python virtual environment
+# - Generates secure web interface password (stored in .streamdrop_auth)
 # - Configures firewall and systemd service
 # - Sets up auto-start on boot
 
@@ -64,8 +65,8 @@ handle_root_user() {
         # Copy/update directory contents to streamdrop user (preserve existing files)
         if [ -f "$STREAMDROP_HOME/setup.sh" ]; then
             echo -e "${YELLOW}📁 StreamDrop directory exists - updating files...${NC}"
-            # Use rsync to update only changed files, preserve stream database
-            rsync -av --exclude='venv/' --exclude='streams.db' . "$STREAMDROP_HOME/"
+            # Use rsync to update only changed files, preserve stream database and auth
+            rsync -av --exclude='venv/' --exclude='streams.db' --exclude='.streamdrop_auth' . "$STREAMDROP_HOME/"
         else
             echo -e "${BLUE}📁 Fresh StreamDrop installation - copying all files...${NC}"
             cp -r . "$STREAMDROP_HOME/"
@@ -331,6 +332,30 @@ echo -e "${BLUE}📦 Installing Python dependencies in virtual environment...${N
 echo -e "${YELLOW}💡 Using pre-built wheels to reduce memory usage and avoid compilation${NC}"
 pip install --prefer-binary --only-binary=:all: --no-compile -r requirements.txt
 
+# Setup web interface password
+setup_password() {
+    echo -e "${BLUE}🔒 Setting up web interface security...${NC}"
+    
+    if [ -f ".streamdrop_auth" ]; then
+        echo -e "${GREEN}✅ Authentication already configured${NC}"
+        return
+    fi
+    
+    # Generate a secure random password
+    WEB_PASSWORD=$(openssl rand -base64 12 | tr -d "=+/" | cut -c1-12)
+    
+    # Store password hash (simple for now, can be enhanced)
+    echo "admin:$WEB_PASSWORD" > .streamdrop_auth
+    chmod 600 .streamdrop_auth
+    
+    echo -e "${GREEN}✅ Web interface password generated${NC}"
+    echo -e "${YELLOW}🔑 Username: admin${NC}"
+    echo -e "${YELLOW}🔑 Password: ${WEB_PASSWORD}${NC}"
+    echo -e "${BLUE}💡 Stored in .streamdrop_auth (keep this secure!)${NC}"
+}
+
+setup_password
+
 # Configure firewall for web interface
 echo -e "${BLUE}🔥 Configuring firewall...${NC}"
 if command -v ufw &> /dev/null; then
@@ -416,58 +441,47 @@ get_server_ip() {
 
 echo ""
 echo -e "${GREEN}🎉 ONE-CLICK DEPLOYMENT COMPLETE! 🎉${NC}"
-echo "=============================================================="
-echo ""
 
+# Get server IP and auth info
 get_server_ip
+if [ -f ".streamdrop_auth" ]; then
+    AUTH_INFO=$(cat .streamdrop_auth)
+    USERNAME=$(echo "$AUTH_INFO" | cut -d: -f1)
+    PASSWORD=$(echo "$AUTH_INFO" | cut -d: -f2)
+fi
 
+# Create final summary box
 echo ""
-echo -e "${BLUE}📋 What's been installed & configured:${NC}"
+echo "=================================================================="
+echo -e "${BLUE}🚀 YOUR STREAMDROP SERVER IS READY! 🚀${NC}"
+echo "=================================================================="
+echo ""
+echo -e "${GREEN}🌐 WEB INTERFACE:${NC}"
+echo -e "   URL:      http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
+echo -e "   Username: ${USERNAME:-admin}"
+echo -e "   Password: ${PASSWORD:-[check .streamdrop_auth file]}"
+echo ""
+echo -e "${BLUE}📊 SYSTEM STATUS:${NC}"
+echo -e "   Service:  🟢 Running and auto-starts on boot"
+echo -e "   Logs:     sudo journalctl -u streamdrop -f"
+echo -e "   Control:  sudo systemctl [start|stop|restart] streamdrop"
+echo ""
 if [ "$TOTAL_MEM" -lt 2048 ] && swapon --show | grep -q "/swapfile"; then
     SWAP_SIZE_DISPLAY=$(swapon --show --noheadings | awk '{print $3}' | head -n1)
-    echo "• ✅ Swap file created: ${SWAP_SIZE_DISPLAY} (respects 30% disk space limit)"
+    echo -e "${YELLOW}💾 OPTIMIZATIONS:${NC}"
+    echo -e "   Swap:     ${SWAP_SIZE_DISPLAY} added for low-memory VPS"
+    if [ "$HEADLESS_MODE" = true ]; then
+        echo -e "   Mode:     Headless (60% fewer packages, perfect for VPS)"
+    fi
+    echo ""
 fi
-if [ "$HEADLESS_MODE" = true ]; then
-    echo "• ✅ Optimized headless dependencies (60% less packages)"
-    echo "• ✅ No X11/Xvfb bloat - maximum efficiency"
-    echo "• ✅ Perfect for VPS ($4-6/month vs $10-20/month)"
-else
-    echo "• ✅ Full system dependencies with X11 support"
-fi
-echo "• ✅ Python virtual environment created (venv/)"
-echo "• ✅ Python packages installed in isolated environment"
-echo "• ✅ Firewall configured (port 5000 opened)"
-echo "• ✅ StreamDrop service created, enabled, and started"
-echo "• ✅ Web interface ready for stream configuration"
+echo -e "${PURPLE}🎯 STREAM MANAGEMENT:${NC}"
+echo -e "   • Create streams via web interface"
+echo -e "   • Each stream has independent YouTube key and content path"
+echo -e "   • Streams restart automatically if they fail"
+echo -e "   • All stream data persists in streams.db"
 echo ""
-echo -e "${BLUE}🚀 Your StreamDrop server is ready:${NC}"
-echo "1. 🌐 Web interface: http://$(curl -s --connect-timeout 3 ipv4.icanhazip.com 2>/dev/null || echo 'YOUR_SERVER_IP'):5000"
-echo "2. 📊 Check status: sudo systemctl status streamdrop"  
-echo "3. 📝 View logs: sudo journalctl -u streamdrop -f"
-echo "4. 🟢 Service is running and will auto-start on boot"
-echo ""
-echo -e "${YELLOW}🔧 Service management:${NC}"
-echo "• Start:   sudo systemctl start streamdrop"
-echo "• Stop:    sudo systemctl stop streamdrop"
-echo "• Restart: sudo systemctl restart streamdrop"
-echo "• Status:  sudo systemctl status streamdrop"
-echo "• Logs:    sudo journalctl -u streamdrop -f"
-echo "• Disable auto-start: sudo systemctl disable streamdrop"
-echo ""
-echo -e "${YELLOW}💡 For manual testing:${NC}"
-echo "• Activate venv: source venv/bin/activate"
-echo "• Run stream manager: ./venv/bin/python stream_manager.py"
-echo "• Create individual streams via web interface or smart_streamer.py"
-echo ""
-echo -e "${PURPLE}🎯 Stream Management:${NC}"
-echo "• Create streams via web interface at http://your-server:5000"
-echo "• Each stream has its own YouTube key and content path"
-echo "• Streams run independently and restart automatically if they fail"
-echo ""
-echo -e "${GREEN}🎊 Your 24/7 streaming server is ready to go!${NC}"
-echo -e "${GREEN}   The service will automatically start on boot.${NC}"
-echo ""
-echo -e "${BLUE}💡 Re-running this script is safe and will:${NC}"
-echo "• Update code files while preserving your stream database"
-echo "• Restart the service to apply any updates"  
-echo "• Skip steps that are already completed"
+echo "=================================================================="
+echo -e "${GREEN}💡 TIP: Bookmark the web interface URL above! 🔖${NC}"
+echo -e "${BLUE}🔄 This setup script is idempotent - safe to re-run anytime${NC}"
+echo "=================================================================="
