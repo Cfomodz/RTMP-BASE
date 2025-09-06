@@ -17,7 +17,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from threading import Thread, Lock
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, flash
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, 
@@ -1988,6 +1988,8 @@ class StreamManager:
 
 # Create Flask app
 app = Flask(__name__)
+# Set secret key for sessions (generate random key if not exists)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex())
 stream_manager = StreamManager()
 
 def check_auth(username, password):
@@ -2005,32 +2007,39 @@ def check_auth(username, password):
         logger.error(f"Error checking authentication: {e}")
     return False
 
-def authenticate():
-    """Send a 401 response that enables basic auth"""
-    response = Response(
-        '<!DOCTYPE html><html><head><title>Authentication Required</title></head>'
-        '<body><h1>401 - Authentication Required</h1>'
-        '<p>You need to login to access StreamDrop.</p>'
-        '<p>Check your setup output or .streamdrop_auth file for credentials.</p></body></html>',
-        401,
-        {'WWW-Authenticate': 'Basic realm="StreamDrop"',
-         'Content-Type': 'text/html'}
-    )
-    return response
-
 def requires_auth(f):
-    """Decorator to require HTTP Basic Auth"""
+    """Decorator to require login via session"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth:
-            # No auth provided - send 401 to trigger browser login dialog
-            return authenticate()
-        if not check_auth(auth.username, auth.password):
-            # Invalid auth provided - send 401 again
-            return authenticate()
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page"""
+    error = None
+    
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if check_auth(username, password):
+            session['logged_in'] = True
+            session['username'] = username
+            return redirect(url_for('dashboard'))
+        else:
+            error = 'Invalid username or password'
+    
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    """Logout and clear session"""
+    session.clear()
+    flash('Successfully logged out!', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/')
 @requires_auth
