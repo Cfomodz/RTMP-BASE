@@ -59,8 +59,15 @@ handle_root_user() {
         # Create StreamDrop directory if it doesn't exist
         mkdir -p "$STREAMDROP_HOME"
         
-        # Copy current directory contents to streamdrop user
-        cp -r . "$STREAMDROP_HOME/"
+        # Copy/update directory contents to streamdrop user (preserve existing files)
+        if [ -f "$STREAMDROP_HOME/setup.sh" ]; then
+            echo -e "${YELLOW}📁 StreamDrop directory exists - updating files...${NC}"
+            # Use rsync to update only changed files, preserve stream database
+            rsync -av --exclude='venv/' --exclude='streams.db' . "$STREAMDROP_HOME/"
+        else
+            echo -e "${BLUE}📁 Fresh StreamDrop installation - copying all files...${NC}"
+            cp -r . "$STREAMDROP_HOME/"
+        fi
         chown -R streamdrop:streamdrop "$STREAMDROP_HOME"
         
         # No environment variables needed - pure web app setup
@@ -111,6 +118,7 @@ sudo apt install -y \
     curl \
     wget \
     unzip \
+    rsync \
     software-properties-common \
     apt-transport-https \
     ca-certificates \
@@ -139,13 +147,24 @@ detect_headless() {
 if detect_headless; then
     echo -e "${GREEN}🎯 Headless system detected - installing optimized packages${NC}"
     echo -e "${BLUE}🎬 Installing minimal dependencies for headless streaming...${NC}"
-    sudo apt install -y \
-        ffmpeg \
-        libnss3 \
-        libatk-bridge2.0-0 \
-        libdrm2 \
-        libgbm1 \
-        libasound2
+    
+    # Install packages with fallback for older Ubuntu versions
+    PACKAGES="ffmpeg libnss3 libdrm2 libgbm1"
+    
+    # Handle Ubuntu 24.04+ package name changes (t64 suffix)
+    if apt-cache show libatk-bridge2.0-0t64 >/dev/null 2>&1; then
+        PACKAGES="$PACKAGES libatk-bridge2.0-0t64"
+    else
+        PACKAGES="$PACKAGES libatk-bridge2.0-0"
+    fi
+    
+    if apt-cache show libasound2t64 >/dev/null 2>&1; then
+        PACKAGES="$PACKAGES libasound2t64"
+    else
+        PACKAGES="$PACKAGES libasound2"
+    fi
+    
+    sudo apt install -y $PACKAGES
     
     HEADLESS_MODE=true
 else
@@ -156,30 +175,44 @@ else
     
     if [[ $HEADLESS_CHOICE =~ ^[Nn]$ ]]; then
         echo -e "${BLUE}🎬 Installing full dependencies with X11 support...${NC}"
-        sudo apt install -y \
-            xvfb \
-            ffmpeg \
-            libnss3-dev \
-            libatk-bridge2.0-dev \
-            libdrm-dev \
-            libxcomposite-dev \
-            libxdamage-dev \
-            libxrandr-dev \
-            libgbm-dev \
-            libxss-dev \
-            libasound2-dev
+        
+        # Full packages with dev libraries (for X11 support)
+        FULL_PACKAGES="xvfb ffmpeg libnss3-dev libdrm-dev libxcomposite-dev libxdamage-dev libxrandr-dev libgbm-dev libxss-dev"
+        
+        # Handle Ubuntu 24.04+ package name changes for dev packages
+        if apt-cache show libatk-bridge2.0-dev >/dev/null 2>&1; then
+            FULL_PACKAGES="$FULL_PACKAGES libatk-bridge2.0-dev"
+        fi
+        
+        if apt-cache show libasound2-dev >/dev/null 2>&1; then
+            FULL_PACKAGES="$FULL_PACKAGES libasound2-dev"
+        elif apt-cache show libasound2t64-dev >/dev/null 2>&1; then
+            FULL_PACKAGES="$FULL_PACKAGES libasound2t64-dev"
+        fi
+        
+        sudo apt install -y $FULL_PACKAGES
         
         HEADLESS_MODE=false
     else
         echo -e "${GREEN}✅ Using headless-optimized setup${NC}"
         echo -e "${BLUE}🎬 Installing minimal dependencies for headless streaming...${NC}"
-        sudo apt install -y \
-            ffmpeg \
-            libnss3 \
-            libatk-bridge2.0-0 \
-            libdrm2 \
-            libgbm1 \
-            libasound2
+        
+        # Same headless logic as above
+        PACKAGES="ffmpeg libnss3 libdrm2 libgbm1"
+        
+        if apt-cache show libatk-bridge2.0-0t64 >/dev/null 2>&1; then
+            PACKAGES="$PACKAGES libatk-bridge2.0-0t64"
+        else
+            PACKAGES="$PACKAGES libatk-bridge2.0-0"
+        fi
+        
+        if apt-cache show libasound2t64 >/dev/null 2>&1; then
+            PACKAGES="$PACKAGES libasound2t64"
+        else
+            PACKAGES="$PACKAGES libasound2"
+        fi
+        
+        sudo apt install -y $PACKAGES
         
         HEADLESS_MODE=true
     fi
@@ -196,9 +229,13 @@ else
     echo -e "${GREEN}✅ Chromium already installed${NC}"
 fi
 
-# Create virtual environment
-echo -e "${BLUE}🐍 Creating Python virtual environment...${NC}"
-python3 -m venv venv
+# Create virtual environment (if it doesn't exist)
+if [ -d "venv" ]; then
+    echo -e "${GREEN}✅ Python virtual environment already exists${NC}"
+else
+    echo -e "${BLUE}🐍 Creating Python virtual environment...${NC}"
+    python3 -m venv venv
+fi
 
 # Activate virtual environment
 echo -e "${BLUE}🔧 Activating virtual environment...${NC}"
@@ -216,8 +253,14 @@ pip install -r requirements.txt
 echo -e "${BLUE}🔥 Configuring firewall...${NC}"
 if command -v ufw &> /dev/null; then
     sudo ufw --force enable
-    sudo ufw allow 5000/tcp comment "StreamDrop Web Interface"
-    echo -e "${GREEN}✅ Firewall configured - Port 5000 opened${NC}"
+    
+    # Check if rule already exists to avoid duplicates
+    if ! sudo ufw status | grep -q "5000/tcp"; then
+        sudo ufw allow 5000/tcp comment "StreamDrop Web Interface"
+        echo -e "${GREEN}✅ Firewall rule added - Port 5000 opened${NC}"
+    else
+        echo -e "${GREEN}✅ Firewall rule already exists - Port 5000 already opened${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  UFW not available, skipping firewall configuration${NC}"
 fi
@@ -266,9 +309,17 @@ EOF
 # Enable and start the service
 sudo systemctl daemon-reload
 sudo systemctl enable streamdrop.service
-echo -e "${BLUE}🚀 Starting StreamDrop service...${NC}"
-sudo systemctl start streamdrop.service
-echo -e "${GREEN}✅ StreamDrop service started and running${NC}"
+
+# Start service if not already running
+if systemctl is-active --quiet streamdrop.service; then
+    echo -e "${GREEN}✅ StreamDrop service already running - restarting to apply updates${NC}"
+    sudo systemctl restart streamdrop.service
+else
+    echo -e "${BLUE}🚀 Starting StreamDrop service...${NC}"
+    sudo systemctl start streamdrop.service
+fi
+
+echo -e "${GREEN}✅ StreamDrop service is running${NC}"
 
 # Display server information
 get_server_ip() {
@@ -329,3 +380,8 @@ echo "• Streams run independently and restart automatically if they fail"
 echo ""
 echo -e "${GREEN}🎊 Your 24/7 streaming server is ready to go!${NC}"
 echo -e "${GREEN}   The service will automatically start on boot.${NC}"
+echo ""
+echo -e "${BLUE}💡 Re-running this script is safe and will:${NC}"
+echo "• Update code files while preserving your stream database"
+echo "• Restart the service to apply any updates"  
+echo "• Skip steps that are already completed"
