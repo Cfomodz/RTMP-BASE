@@ -43,15 +43,6 @@ http://your-server-ip:5000
 - Each stream has its own YouTube key and content path
 - Streams run independently and restart if they fail
 
-**Manual stream creation (advanced):**
-```bash
-# Create individual streams via command line if needed:
-YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="https://clock.zone" python3 smart_streamer.py
-# **Stream local HTML:**
-YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="file:///path/to/file.html" python3 smart_streamer.py
-# **Stream pygame game:**
-YOUTUBE_STREAM_KEY="your_key" CONTENT_PATH="fun_game.py" python3 smart_streamer.py
-```
 
 ### Optimization
 
