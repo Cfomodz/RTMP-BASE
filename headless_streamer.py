@@ -39,13 +39,17 @@ class HeadlessHTMLStreamer:
         
     def start_chromium_headless(self):
         """Start Chromium in true headless mode with remote debugging"""
+        # Detect available memory for optimization
+        import psutil
+        total_memory_mb = psutil.virtual_memory().total // (1024 * 1024)
+        
         chromium_cmd = [
             'chromium-browser',
             '--headless=new',  # New headless mode (more efficient)
             '--no-gpu',
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
+            '--disable-dev-shm-usage',  # CRITICAL for low memory
             '--disable-extensions',
             '--disable-plugins',
             '--disable-background-timer-throttling',
@@ -58,10 +62,33 @@ class HeadlessHTMLStreamer:
             '--disable-component-update',
             '--remote-debugging-port=' + str(self.debug_port),
             '--remote-debugging-address=127.0.0.1',
-            '--window-size=1280,720',
-            '--virtual-time-budget=5000',
-            self.content_path
+            '--virtual-time-budget=5000'
         ]
+        
+        # Add memory optimizations based on available RAM
+        if total_memory_mb < 1024:
+            chromium_cmd.extend([
+                '--single-process',  # Run in single process mode
+                '--no-zygote',  # Don't use zygote process
+                '--max_old_space_size=96',  # Limit V8 heap
+                '--js-flags="--max-old-space-size=96 --max-semi-space-size=2"',
+                '--aggressive-cache-discard',
+                '--aggressive-tab-discard',
+                '--enable-low-end-device-mode',
+                '--disable-site-isolation-trials',
+                '--disable-features=site-per-process',
+                '--window-size=854,480'  # Smaller window for less memory
+            ])
+            logger.info(f"Applied low-memory optimizations (system has {total_memory_mb}MB)")
+        elif total_memory_mb < 2048:
+            chromium_cmd.extend([
+                '--max_old_space_size=256',
+                '--window-size=1280,720'
+            ])
+        else:
+            chromium_cmd.append('--window-size=1280,720')
+            
+        chromium_cmd.append(self.content_path)
         
         logger.info("Starting Chromium in optimized headless mode...")
         self.chrome_process = subprocess.Popen(

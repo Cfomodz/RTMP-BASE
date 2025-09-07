@@ -1047,13 +1047,17 @@ class StreamInstance:
             # Start Chrome in headless mode with remote debugging
             chrome_port = 9222 + int(self.config['id'][-1])  # Unique port per stream
             
+            # Detect available memory for optimization
+            import psutil
+            total_memory_mb = psutil.virtual_memory().total // (1024 * 1024)
+            
             chrome_cmd = [
                 'chromium-browser',
                 '--headless',
                 '--disable-gpu',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
+                '--disable-dev-shm-usage',  # CRITICAL for low memory
                 '--disable-extensions',
                 '--disable-plugins',
                 '--disable-images',  # Optimize for streaming
@@ -1068,14 +1072,36 @@ class StreamInstance:
                 '--disable-default-apps',
                 '--disable-sync',
                 '--memory-pressure-off',
-                '--max_old_space_size=128',
                 '--mute-audio',
                 f'--window-size={quality["resolution"].replace("x", ",")}',
                 f'--remote-debugging-port={chrome_port}',
                 '--enable-logging',
-                '--log-level=0',
-                self.config['source']
+                '--log-level=0'
             ]
+            
+            # Add aggressive memory optimizations for low-memory systems
+            if total_memory_mb < 1024:
+                chrome_cmd.extend([
+                    '--single-process',  # Run in single process mode
+                    '--no-zygote',  # Don't use zygote process
+                    '--max_old_space_size=96',  # Limit V8 heap to 96MB
+                    '--js-flags="--max-old-space-size=96 --max-semi-space-size=2"',
+                    '--aggressive-cache-discard',
+                    '--aggressive-tab-discard',
+                    '--enable-low-end-device-mode',
+                    '--disable-site-isolation-trials',
+                    '--disable-features=site-per-process'
+                ])
+                logger.info(f"Applied low-memory optimizations (system has {total_memory_mb}MB)")
+            elif total_memory_mb < 2048:
+                chrome_cmd.extend([
+                    '--max_old_space_size=256',  # Limit V8 heap to 256MB
+                    '--js-flags="--max-old-space-size=256"'
+                ])
+            else:
+                chrome_cmd.append('--max_old_space_size=512')
+                
+            chrome_cmd.append(self.config['source'])
             
             logger.info(f"Starting headless Chrome: {' '.join(chrome_cmd[:8])}...")
             self.processes['chrome'] = subprocess.Popen(chrome_cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -1086,8 +1112,19 @@ class StreamInstance:
             if self.processes['chrome'].poll() is not None:
                 # Chrome died immediately
                 stderr_output = self.processes['chrome'].stderr.read().decode() if self.processes['chrome'].stderr else "No error output"
-                logger.error(f"Chrome died immediately. Error: {stderr_output}")
-                raise Exception(f"Chrome failed to start: {stderr_output}")
+                logger.error(f"Chrome died immediately. Error: {stderr_output[:1000]}")
+                
+                # Check for common memory-related errors
+                if "Shared memory" in stderr_output or "/dev/shm" in stderr_output:
+                    logger.error("Chrome crashed due to shared memory limits. System may need more RAM or larger /dev/shm")
+                    logger.info("Falling back to test pattern streaming...")
+                    return self._start_test_pattern_streaming(quality)
+                elif "memory" in stderr_output.lower() or "oom" in stderr_output.lower():
+                    logger.error("Chrome crashed due to out of memory. System needs more RAM.")
+                    logger.info("Falling back to test pattern streaming...")
+                    return self._start_test_pattern_streaming(quality)
+                    
+                raise Exception(f"Chrome failed to start: {stderr_output[:500]}")
             
             # Verify Chrome is responding on debug port
             import socket
