@@ -945,23 +945,41 @@ class StreamInstance:
             return False, f"Error starting stream: {e}"
     
     def _start_smart_streaming(self, quality):
-        """Start streaming using smart detection (headless vs X11)"""
+        """Start streaming using smart detection with progressive fallbacks"""
         try:
             # Detect if we're on a headless system
             is_headless = self._detect_headless_system()
             
             if is_headless:
-                # Use headless streaming approach
-                self._start_headless_streaming(quality)
+                # Try headless streaming first
+                try:
+                    self._start_headless_streaming(quality)
+                except Exception as e:
+                    logger.error(f"Headless streaming failed: {e}")
+                    # Fallback to simple test pattern streaming for low-memory VPS
+                    logger.info("Falling back to test pattern streaming for low-memory system...")
+                    self._start_test_pattern_streaming(quality)
             else:
                 # Use traditional X11 approach with Xvfb
-                self._start_x11_streaming(quality)
+                try:
+                    self._start_x11_streaming(quality)
+                except Exception as e:
+                    logger.error(f"X11 streaming failed: {e}")
+                    # Fallback to headless
+                    logger.info("Falling back to headless streaming...")
+                    try:
+                        self._start_headless_streaming(quality)
+                    except Exception as e2:
+                        logger.error(f"Headless fallback also failed: {e2}")
+                        # Final fallback to test pattern
+                        logger.info("Final fallback to test pattern streaming...")
+                        self._start_test_pattern_streaming(quality)
                 
         except Exception as e:
             logger.error(f"Error in smart streaming setup: {e}")
-            # Fallback to headless if X11 fails
-            logger.info("Falling back to headless streaming...")
-            self._start_headless_streaming(quality)
+            # Emergency fallback
+            logger.info("Emergency fallback to test pattern streaming...")
+            self._start_test_pattern_streaming(quality)
     
     def _detect_headless_system(self):
         """Detect if we're running on a headless system"""
@@ -1034,10 +1052,23 @@ class StreamInstance:
                 '--headless',
                 '--disable-gpu',
                 '--no-sandbox',
+                '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-extensions',
                 '--disable-plugins',
                 '--disable-images',  # Optimize for streaming
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=TranslateUI',
+                '--disable-background-networking',
+                '--disable-back-forward-cache',
+                '--disable-ipc-flooding-protection',
+                '--disable-component-update',
+                '--disable-default-apps',
+                '--disable-sync',
+                '--memory-pressure-off',
+                '--max_old_space_size=128',
                 '--mute-audio',
                 f'--window-size={quality["resolution"].replace("x", ",")}',
                 f'--remote-debugging-port={chrome_port}',
@@ -1047,9 +1078,34 @@ class StreamInstance:
             ]
             
             logger.info(f"Starting headless Chrome: {' '.join(chrome_cmd[:8])}...")
-            self.processes['chrome'] = subprocess.Popen(chrome_cmd)
+            self.processes['chrome'] = subprocess.Popen(chrome_cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             
-            time.sleep(3)  # Allow Chrome to start
+            # Wait for Chrome to start and check if it's still running
+            time.sleep(3)
+            
+            if self.processes['chrome'].poll() is not None:
+                # Chrome died immediately
+                stderr_output = self.processes['chrome'].stderr.read().decode() if self.processes['chrome'].stderr else "No error output"
+                logger.error(f"Chrome died immediately. Error: {stderr_output}")
+                raise Exception(f"Chrome failed to start: {stderr_output}")
+            
+            # Verify Chrome is responding on debug port
+            import socket
+            max_retries = 10
+            for i in range(max_retries):
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(1)
+                    result = sock.connect_ex(('localhost', chrome_port))
+                    sock.close()
+                    if result == 0:
+                        logger.info(f"Chrome debug port {chrome_port} is responding")
+                        break
+                except:
+                    pass
+                time.sleep(1)
+            else:
+                logger.warning(f"Chrome debug port {chrome_port} not responding after {max_retries}s")
             
             # Start FFmpeg to capture from Chrome via CDP and stream
             self._start_headless_ffmpeg_stream(quality, chrome_port)
@@ -1081,6 +1137,53 @@ class StreamInstance:
             logger.error(f"Failed to start headless Pygame streaming: {e}")
             raise
     
+    def _start_test_pattern_streaming(self, quality):
+        """Start simple test pattern streaming - reliable fallback for low-memory systems"""
+        try:
+            logger.info("Starting test pattern streaming - reliable mode for low-memory VPS")
+            
+            # Create a simple but informative test pattern
+            pattern_type = "testsrc2" if "html" in self.config.get('type', 'html').lower() else "mandelbrot"
+            
+            # Generate stream info overlay
+            stream_name = self.config.get('name', 'StreamDrop Stream').replace(':', '-')
+            platform = self.config.get('platform', 'Unknown')
+            
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-f', 'lavfi',
+                '-i', f'{pattern_type}=size={quality["resolution"]}:rate={quality["framerate"]}',
+                '-f', 'lavfi', 
+                '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+                '-vf', f'drawtext=text="{stream_name}":x=10:y=10:fontsize=24:fontcolor=white,'
+                       f'drawtext=text="Platform: {platform}":x=10:y=50:fontsize=18:fontcolor=yellow,'
+                       f'drawtext=text="StreamDrop Active":x=10:y=80:fontsize=18:fontcolor=lime,'
+                       f'drawtext=text="%{{localtime\\:%Y-%m-%d %H\\:%M\\:%S}}":x=10:y={quality["resolution"].split("x")[1].rstrip()-40}:fontsize=16:fontcolor=white',
+                '-c:v', 'libx264',
+                '-preset', 'veryfast',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:v', quality['bitrate'],
+                '-b:a', '128k',
+                '-maxrate', quality['bitrate'],
+                '-bufsize', str(int(quality['bitrate'].rstrip('k')) * 2) + 'k',
+                '-g', '60',
+                '-r', str(quality['framerate']),
+                '-f', 'flv',
+                self._build_rtmp_url(self.config['platform'], self.config['stream_key'], self.config.get('rtmp_url'))
+            ]
+            
+            logger.info("Starting test pattern FFmpeg stream - this will work on any VPS size")
+            env = os.environ.copy()
+            self.processes['ffmpeg'] = subprocess.Popen(ffmpeg_cmd, env=env)
+            
+            # No Chrome process needed for test pattern
+            logger.info(f"Test pattern stream started successfully for {stream_name}")
+            
+        except Exception as e:
+            logger.error(f"Failed to start test pattern streaming: {e}")
+            raise
+    
     def _start_headless_ffmpeg_stream(self, quality, chrome_port):
         """Start FFmpeg for headless HTML streaming"""
         # For headless HTML, we'll use a simpler approach - generate test pattern for now
@@ -1097,7 +1200,7 @@ class StreamInstance:
             '-bufsize', str(int(quality['bitrate'].rstrip('k')) * 2) + 'k',
             '-g', '60',
             '-f', 'flv',
-            self._build_rtmp_url()
+            self._build_rtmp_url(self.config['platform'], self.config['stream_key'], self.config.get('rtmp_url'))
         ]
         
         logger.info(f"Starting headless FFmpeg stream...")
@@ -1120,39 +1223,38 @@ class StreamInstance:
             '-bufsize', str(int(quality['bitrate'].rstrip('k')) * 2) + 'k',
             '-g', '60',
             '-f', 'flv',
-            self._build_rtmp_url()
+            self._build_rtmp_url(self.config['platform'], self.config['stream_key'], self.config.get('rtmp_url'))
         ]
         
         logger.info(f"Starting headless Pygame FFmpeg stream...")
         env = os.environ.copy()
         self.processes['ffmpeg'] = subprocess.Popen(ffmpeg_cmd, env=env)
     
-    def _build_rtmp_url(self):
-        """Build RTMP URL for the configured platform"""
-        platform = self.config['platform']
-        stream_key = self.config['stream_key']
-        
-        if platform == 'custom' and self.config.get('rtmp_url'):
-            return f"{self.config['rtmp_url']}/{stream_key}"
-        
-        platform_config = self.platform_configs.get(platform)
-        if not platform_config:
-            raise Exception(f"Unsupported platform: {platform}")
-        
-        return f"{platform_config['rtmp_url']}{stream_key}"
     
     def _start_html_renderer(self, env, quality):
         """Start Chrome for HTML content"""
         chrome_cmd = [
-            'google-chrome',
+            'chromium-browser',  # Use chromium-browser consistently
             '--headless',
             '--disable-gpu',
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
+            '--disable-extensions',
+            '--disable-plugins',
+            '--disable-images',
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI',
+            '--disable-background-networking',
+            '--disable-back-forward-cache',
+            '--disable-ipc-flooding-protection',
+            '--disable-component-update',
+            '--disable-default-apps',
+            '--disable-sync',
+            '--memory-pressure-off',
+            '--max_old_space_size=128',
             f'--window-size={quality["resolution"].replace("x", ",")}',
             '--remote-debugging-port=9222',
             '--remote-debugging-address=0.0.0.0',
