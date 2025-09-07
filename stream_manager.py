@@ -2172,11 +2172,6 @@ def api_create_stream_from_template():
         return jsonify({"success": False, "message": f"Error: {e}"})
 
 # Platform Management APIs
-@app.route('/api/platforms', methods=['GET'])
-def api_get_platforms():
-    """Get all available platforms"""
-    platforms = stream_manager.db.get_platform_configs()
-    return jsonify(platforms)
 
 @app.route('/api/platforms', methods=['POST'])
 def api_create_platform():
