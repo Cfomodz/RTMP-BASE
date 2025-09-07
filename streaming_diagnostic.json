@@ -1,0 +1,36 @@
+{
+  "system": {
+    "memory_mb": 16017,
+    "available_mb": 14910,
+    "swap_mb": 0,
+    "shm_size_mb": 64,
+    "cpu_count": 4
+  },
+  "tests": {
+    "chromium_standard": {
+      "success": false,
+      "memory_used": 0
+    },
+    "chromium_optimized": {
+      "success": false,
+      "memory_used": 0
+    },
+    "ffmpeg_standard": false
+  },
+  "recommendations": [
+    {
+      "tier": "high",
+      "verdict": "EXCELLENT",
+      "reason": "2GB+ RAM can handle standard streaming",
+      "solution": "All streaming modes available"
+    }
+  ],
+  "recommended_config": {
+    "mode": "standard",
+    "resolution": "1920x1080",
+    "framerate": "30",
+    "bitrate": "2500k",
+    "preset": "veryfast",
+    "chrome_flags": []
+  }
+}
