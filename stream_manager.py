@@ -2041,6 +2041,17 @@ class StreamManager:
         try:
             with stream_lock:
                 if stream_id not in self.active_streams:
+                    # Stream not in active_streams - check if it needs to be reset
+                    stream_config = self.db.get_stream(stream_id)
+                    if stream_config and stream_config['status'] != 'stopped':
+                        # Reset the stream status to stopped in database
+                        self.db.update_stream_status(stream_id, 'stopped')
+                        self.db.log_event(stream_id, 'stream_reset', {
+                            'reason': 'manual_reset_from_error_state',
+                            'previous_status': stream_config['status']
+                        })
+                        logger.info(f"Reset stream {stream_id} from {stream_config['status']} to stopped")
+                        return True, "Stream reset to stopped state"
                     return False, "Stream not active"
                 
                 result = self.active_streams[stream_id].stop_streaming()
